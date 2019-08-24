@@ -26,10 +26,12 @@ def solve (distances, demand, cabs): # new demand, old demand
     B=set(range(n*n))
     (status,x)=ilp(c,g.T,h,a,b,I,B)
     #suma = sum(c.T*x)
-    print (x)
+    return x
 
 ################################################################
 n_stands=10 # number of stands
+n_cabs=3
+n_cust=4
 dist = np.zeros((n_stands,n_stands)) # distances
 # calculate distances
 for i in range(0,n_stands):
@@ -41,11 +43,15 @@ new_demand = []
 new_demand.append((0, 0,2))  # indices in Python start with 0
 new_demand.append((1, 0,5))
 new_demand.append((2, 3,1))
-new_demand.append((3, 5,1))
+new_demand.append((n_cust-1, 5,1))
 current_trips = []
 # ID, from, to; from not used at that moment
-current_trips.append((2, 0,5))
-current_trips.append((1, 3,1))
 current_trips.append((0, 3,3))
+current_trips.append((1, 3,1))
+current_trips.append((n_cabs-1, 0,5))
 
-solve(dist, new_demand, current_trips)
+x = solve(dist, new_demand, current_trips)
+for dem in range(0,n_cabs): # three cabs
+   for trip in range(0,n_cust): # four customers
+       if x[n_cust*dem+trip]==1:
+          print ("cab %d takes customer %d" % (dem, trip))

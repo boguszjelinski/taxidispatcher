@@ -3,7 +3,7 @@
 #include <string.h>
 #include <time.h>
 
-#define n 10
+#define n 1000
 
 float max_loss=1.01; // I don't care if it takes 2x longer with pool
 int cost[n][n];
