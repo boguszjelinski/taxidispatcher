@@ -4,6 +4,7 @@
 This repository contains code (and one important PDF) which mainly shows how to use the GLPK solver for taxi dispatching - something I hope will help some companies build wounderful self-driving taxi services. 
 
 Files with code are meant to explain different aspects of the problem:
+
 python.py: shows how matrices are constructed, how they reflect the mathematical model
 
 heuristic.py: it was used to compare optimal solutions to LCM
