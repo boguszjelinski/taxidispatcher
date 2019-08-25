@@ -3,7 +3,7 @@ import numpy as np
 from cvxopt import matrix
 
 n=100
-max_iter=5
+max_iter=5  # low number as solver fails often with these constraints
 
 arr = np.zeros((n, n*n)) 
 for i in range(0,n):
@@ -18,9 +18,9 @@ I=set(range(n*n))
 B=set(range(n*n))
 
 numb_cust=n # maybe *2? twice as many customers than there are stops; 
-max_loss=1.01 # I don't care if it takes 2x longer with pool
+max_loss=1.01 # 1.3 would mean I don't care if it takes 30% longer with pool
 
-# cost=np.zeros((n,n)) # distances
+# cost=np.zeros((n,n)) # these simple distances were replaced by random ones below
 # # calculate distances
 # for i in range(0,n):
 #     for j in range(i,n):
@@ -28,7 +28,7 @@ max_loss=1.01 # I don't care if it takes 2x longer with pool
 #         cost[i][j]=cost[j][i] 
 cost = [[np.random.randint(1,40) for i in range(n)] for j in range(n)] 
 #print (cost)
-f= open("c:/Users/dell/Documents/TAXI-routing/Python/pool_out.txt","w+")
+f= open("pool_out.txt","w+")
 
 for iter in range(max_iter):
     demand = [[np.random.randint(0,n) for i in range(2)] for j in range(numb_cust)]
@@ -83,21 +83,21 @@ for iter in range(max_iter):
     #print (array)
     nmb = len(array)
     i=1
-    total_cost = array[0][2] # the first element will always be in plan
-    numb_plans=1;
+    total_cost = array[0][2] # the first element will always be in plan; 2 is index of cost
+    numb_plans=1
     while True:
         j=0 # check if one of passengers were mentioned earlier
         while True:
             if (array[j][0]!=-1 and #  not marked as dropped
                 (array[i][0]==array[j][0] or array[i][1]==array[j][1] or
                 array[i][0]==array[j][1] or array[i][1]==array[j][0])): 
-                array[i][0]=-1
+                array[i][0]=-1 # mark as dropped
                 break
             else: j=j+1
-            if (j >= i): 
+            if (j >= i):  # not found - add this cost
                 total_cost = total_cost + array[i][2]
                 numb_plans=numb_plans+1
-                break # not found
+                break 
         i = i+1
         if (i >= nmb): break
 
@@ -110,6 +110,7 @@ for iter in range(max_iter):
 
     #print ("Routes: %d, total cost: %d" % (numb_of_trips, total_cost))
     print ("====================")
+    # now optimal solution
     (status,x)=ilp(c,g.T,h,a,b,I,B)
     #print(sum(c.T*x))
     tot_cost=0
@@ -120,7 +121,7 @@ for iter in range(max_iter):
             tot_cost = tot_cost + c[i]
             numb_var = numb_var +1
     #print ("Routes: %d, total cost: %d" % (numb_var, tot_cost))
-    if (numb_var == numb_of_trips): # it is easier to compare 
+    if (numb_var == numb_of_trips): # it is easier to compare, small difference in numbers of plans in LCM and solver 
         f.write("%d; %d; %5.0f\n" % (total_cost, tot_cost, 100* (total_cost - tot_cost)/tot_cost) )
 
 f.close() 

@@ -4,12 +4,12 @@ from cvxopt import matrix
 
 def solve (distances, demand, cabs): # new demand, old demand
     n = 0
-    if (len(cabs) > len(demand)): n = len(cabs) 
+    if (len(cabs) > len(demand)): n = len(cabs)  # checking max size for unbalanced scenarios
     else: n = len(demand)
-    cost = [[n*n for i in range(n)] for j in range(n)] # array filled with huge costs
+    cost = [[n*n for i in range(n)] for j in range(n)] # array filled with huge costs - it will be overwritten for most cells below
     for c_id, c_frm, c_to in cabs:
         for d_id, d_frm, d_to in demand:
-            cost[c_id][d_id] = distances[c_to][d_frm]
+            cost[c_id][d_id] = distances[c_to][d_frm] 
     
     c=matrix(cost, tc='d')
     # constraints
@@ -39,7 +39,7 @@ for i in range(0,n_stands):
         dist[j][i]=j-i # simplification of distance - stop9 is closer to stop7 than to stop1
         dist[i][j]=dist[j][i] 
 new_demand = []
-# ID, from, to
+# ID, from, to; see the PDF file with explaination
 new_demand.append((0, 0,2))  # indices in Python start with 0
 new_demand.append((1, 0,5))
 new_demand.append((2, 3,1))
