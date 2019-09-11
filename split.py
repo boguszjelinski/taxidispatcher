@@ -15,40 +15,37 @@ def solve_split (fil, size, distances, demand, cabs): # new demand, old demand
     while start<size:
         split_demand = []
         nb_cust=0
-        split_trips = []   
+        split_cabs = []   
         nb_cabs=0
         r = range(start, start+ split_size)
-        fil.write ("\nThe demand:")
         for d_id, d_frm, d_to in demand:
-            f.write("(%d,%d,%d)" % (d_id,d_frm,d_to))
             if d_frm in r:
-                split_demand.append((nb_cust, d_frm, d_to))
+                split_demand.append((d_id, d_frm, d_to))
                 nb_cust = nb_cust +1
-        fil.write ("\nThe supply:")
         for c_id, c_frm, c_to in cabs:
-            f.write("(%d,%d,%d)" % (c_id,c_frm,c_to))
             if c_to in r:
-                split_trips.append((nb_cabs,c_frm,c_to))
+                split_cabs.append((c_id,c_frm,c_to))
                 nb_cabs = nb_cabs+1
         
         if nb_cust>0 and nb_cabs>0:
-            fil.write ("\nrange %d to %d:" % (start, start+split_size))
+            fil.write ("\n\nRange %d to %d:" % (start, start+split_size))
             fil.write ("\nCustomers:")
             for d_id, d_frm, d_to in split_demand:
                 f.write("(%d,%d,%d)" % (d_id,d_frm,d_to))
             fil.write ("\nCabs:")
-            for c_id, c_frm, c_to in split_trips:
+            for c_id, c_frm, c_to in split_cabs:
                 f.write("(%d,%d,%d)" % (c_id,c_frm,c_to))
 
-            x4 = solve(distances, split_demand, split_trips)
-
-            for dem in range(0,nb_cabs): # three cabs
+            x4 = solve(distances, split_demand, split_cabs)
+            s=0
+            for taxi in range(0,nb_cabs): # three cabs
                 for trip in range(0,nb_cust): # four customers
-                    if x4[nb_cust*dem+trip]==1:
-                        f.write ("\ncab %d takes customer %d" % (dem, trip))
-
+                    if x4[nb_cust*taxi+trip]==1:
+                        f.write ("\ncab %d takes customer %d" % (split_cabs[taxi][0], split_demand[trip][0]))
+                        s = s + dist[split_cabs[taxi][2]][split_demand[trip][1]]
+            f.write ("\nSum: %d " % (s) )
         start = start + split_size
-        break
+        #break
 ################################################
 
 def solve (distances, demand, cabs): # new demand, old demand
@@ -56,9 +53,13 @@ def solve (distances, demand, cabs): # new demand, old demand
     if (len(cabs) > len(demand)): n = len(cabs)  # checking max size for unbalanced scenarios
     else: n = len(demand)
     cost = [[n*n for i in range(n)] for j in range(n)] # array filled with huge costs - it will be overwritten for most cells below
+    c_idx=0
     for c_id, c_frm, c_to in cabs:
+        d_idx=0
         for d_id, d_frm, d_to in demand:
-            cost[c_id][d_id] = distances[c_to][d_frm] 
+            cost[c_idx][d_idx] = distances[c_to][d_frm] 
+            d_idx = d_idx +1
+        c_idx = c_idx+1
     
     c=matrix(cost, tc='d')
     # constraints
@@ -74,7 +75,6 @@ def solve (distances, demand, cabs): # new demand, old demand
     I=set(range(n*n))
     B=set(range(n*n))
     (status,x)=ilp(c,g.T,h,a,b,I,B)
-    #suma = sum(c.T*x)
     return x
 
 ################################################################
@@ -96,30 +96,29 @@ for i in range(0,n_stands):
     frm = np.random.randint(0,n_stands)
     to = np.random.randint(0,n_stands)
     if (frm != to): #  drop if equals
-        new_demand.append((i-dropped, frm, to))  # indices in Python start with 0
-        f.write("(%d,%d,%d)" % (i-dropped,frm,to))
+        new_demand.append((n_cust, frm, to))  # indices in Python start with 0
+        f.write("(%d,%d,%d)" % (n_cust,frm,to))
         n_cust = n_cust +1
-    else:
-        dropped = dropped +1
+
 current_trips = []
-minus=0
 # ID, from, to; from not used at that moment
 f.write ("\nThe total supply:")
 for i in range(0,n_stands):
     frm = np.random.randint(0,n_stands)
     to = np.random.randint(0,n_stands)
     if (frm != to): #  drop if equals
-        current_trips.append((i-dropped, frm, to))  # indices in Python start with 0
-        f.write("(%d,%d,%d)" % (i-dropped,frm,to))
+        current_trips.append((n_cabs, frm, to))  # indices in Python start with 0
+        f.write("(%d,%d,%d)" % (n_cabs,frm,to))
         n_cabs = n_cabs +1
-    else:
-        dropped = dropped +1
 
 x = solve(dist, new_demand, current_trips)
-for dem in range(0,n_cabs): # three cabs
+res=0
+for taxi in range(0,n_cabs): # three cabs
    for trip in range(0,n_cust): # four customers
-       if x[n_cust*dem+trip]==1:
-          f.write ("\ncab %d takes customer %d" % (dem, trip))
+       if x[n_cust*taxi+trip]==1:
+          f.write ("\ncab %d takes customer %d" % (current_trips[taxi][0], new_demand[trip][0])) # [0] is ID
+          res = res + dist[current_trips[taxi][2]][new_demand[trip][1]]
+f.write ("\nSum: %d " % (res) )
 
 solve_split(f, n_stands, dist, new_demand, current_trips)
 f.close()
