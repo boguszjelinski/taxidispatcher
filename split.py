@@ -1,6 +1,7 @@
 from cvxopt.glpk import ilp
 import numpy as np
 from cvxopt import matrix
+big_cost=1000
 
 def solve_split (fil, size, distances, demand, cabs): # new demand, old demand
     fil.write ("\n\nsolve_split for %d" % (size))
@@ -10,6 +11,9 @@ def solve_split (fil, size, distances, demand, cabs): # new demand, old demand
     if len(cabs)==0:
         fil.write("No supply, quiting.")
         return
+    rest_cust=[] # a list of IDs which have not been served
+    rest_cabs=[] # which have not been used
+    total=0
     start=0
     split_size = int(size/4)
     while start<size:
@@ -18,6 +22,7 @@ def solve_split (fil, size, distances, demand, cabs): # new demand, old demand
         split_cabs = []   
         nb_cabs=0
         r = range(start, start+ split_size)
+        s=0
         for d_id, d_frm, d_to in demand:
             if d_frm in r:
                 split_demand.append((d_id, d_frm, d_to))
@@ -36,23 +41,71 @@ def solve_split (fil, size, distances, demand, cabs): # new demand, old demand
             for c_id, c_frm, c_to in split_cabs:
                 f.write("(%d,%d,%d)" % (c_id,c_frm,c_to))
 
-            x4 = solve(distances, split_demand, split_cabs)
-            s=0
-            for taxi in range(0,nb_cabs): # three cabs
-                for trip in range(0,nb_cust): # four customers
-                    if x4[nb_cust*taxi+trip]==1:
-                        f.write ("\ncab %d takes customer %d" % (split_cabs[taxi][0], split_demand[trip][0]))
-                        s = s + dist[split_cabs[taxi][2]][split_demand[trip][1]]
+            x4, c = solve(distances, split_demand, split_cabs)
+            if (nb_cabs > nb_cust): nb = nb_cabs  # checking max size for unbalanced scenarios
+            else: nb = nb_cust
+            
+            for taxi in range(0,nb): # three cabs
+                for trip in range(0,nb): # four customers
+                    if x4[nb * taxi + trip]==1:
+                        if c[taxi][trip] == big_cost: # big cost means customer not served
+                            if nb_cabs > nb_cust:
+                                rest_cabs.append(split_cabs[taxi][0])
+                            else: 
+                                rest_cust.append(split_demand[trip][0])
+                        else:
+                            f.write ("\ncab %d takes customer %d" % (split_cabs[taxi][0], split_demand[trip][0]))
+                            s = s + dist[split_cabs[taxi][2]][split_demand[trip][1]]
             f.write ("\nSum: %d " % (s) )
+        elif nb_cust>0:
+            for d_id, d_frm, d_to in split_demand:
+                rest_cust.append(d_id)
+        else:
+            for c_id, c_frm, c_to in split_cabs:
+                rest_cabs.append(c_id)
         start = start + split_size
-        #break
+        total = total +s
+
+    # now solve customers without a cab so far
+    fil.write ("\n\nRest:")
+    rest_demand =[]
+    rest_supply =[]
+    nb_cust=0
+    nb_cabs=0
+    fil.write ("\nCustomers:")
+    for d_id, d_frm, d_to in demand:
+        if d_id in rest_cust:
+            rest_demand.append((d_id, d_frm, d_to))
+            f.write("(%d,%d,%d)" % (d_id,d_frm,d_to))
+            nb_cust = nb_cust +1
+    fil.write ("\nCabs:")
+    for c_id, c_frm, c_to in cabs:
+        if c_id in rest_cabs:
+            rest_supply.append((c_id,c_frm,c_to))
+            f.write("(%d,%d,%d)" % (c_id,c_frm,c_to))
+            nb_cabs = nb_cabs +1
+
+    x5, c_table = solve(distances, rest_demand, rest_supply)
+
+    if (nb_cabs > nb_cust): 
+        nn = nb_cabs  # checking max size for unbalanced scenarios
+    else: 
+        nn = nb_cust
+    
+    for taxi in range(0,nn): 
+        for trip in range(0,nn): 
+            if x5[nn*taxi+trip]==1:
+                if c_table[taxi][trip] < big_cost:
+                    f.write ("\ncab %d takes customer %d" % (rest_supply[taxi][0], rest_demand[trip][0])) # [0] is ID
+                    total = total + dist[rest_supply[taxi][2]][rest_demand[trip][1]]
+    f.write("\nTotal cost: %d" % (total))
 ################################################
 
 def solve (distances, demand, cabs): # new demand, old demand
     n = 0
     if (len(cabs) > len(demand)): n = len(cabs)  # checking max size for unbalanced scenarios
     else: n = len(demand)
-    cost = [[n*n for i in range(n)] for j in range(n)] # array filled with huge costs - it will be overwritten for most cells below
+    cost = [[big_cost for i in range(n)] for j in range(n)] # array filled with huge costs - it will be overwritten for most cells below
     c_idx=0
     for c_id, c_frm, c_to in cabs:
         d_idx=0
@@ -75,7 +128,7 @@ def solve (distances, demand, cabs): # new demand, old demand
     I=set(range(n*n))
     B=set(range(n*n))
     (status,x)=ilp(c,g.T,h,a,b,I,B)
-    return x
+    return x, cost
 
 ################################################################
 n_stands=12 # number of stands
@@ -111,13 +164,20 @@ for i in range(0,n_stands):
         f.write("(%d,%d,%d)" % (n_cabs,frm,to))
         n_cabs = n_cabs +1
 
-x = solve(dist, new_demand, current_trips)
+x, cost_table = solve(dist, new_demand, current_trips)
+
+if (n_cabs > n_cust): 
+    nn = n_cabs  # checking max size for unbalanced scenarios
+else: 
+    nn = n_cust
 res=0
-for taxi in range(0,n_cabs): # three cabs
-   for trip in range(0,n_cust): # four customers
-       if x[n_cust*taxi+trip]==1:
-          f.write ("\ncab %d takes customer %d" % (current_trips[taxi][0], new_demand[trip][0])) # [0] is ID
-          res = res + dist[current_trips[taxi][2]][new_demand[trip][1]]
+for taxi in range(0,nn): 
+    for trip in range(0,nn): 
+        if x[nn*taxi+trip]==1:
+            if cost_table[taxi][trip] < big_cost:
+                f.write ("\ncab %d takes customer %d" % (current_trips[taxi][0], new_demand[trip][0])) # [0] is ID
+                res = res + dist[current_trips[taxi][2]][new_demand[trip][1]]
+
 f.write ("\nSum: %d " % (res) )
 
 solve_split(f, n_stands, dist, new_demand, current_trips)
