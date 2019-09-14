@@ -2,13 +2,14 @@ from cvxopt.glpk import ilp
 import numpy as np
 from cvxopt import matrix
 
-big_cost=2500
-DEBUG=0
+big_cost=250000
+DEBUG=1
 n_stands=20 # number of stands
-f = open("c:\\Users\\dell\\split.txt", "w")
+f = open("splitout.txt", "w")
 
 # count the goal function of a solved model
 # nn: number of customers=cabs (balanced)
+
 # cost: cost matrix
 # res: result received from solver
 # show: debug
@@ -27,15 +28,13 @@ def count_sum(nn, cost, res, demand, supply, show, sum): ## nn is number of cust
 
 # filters out elements in range - it maybe 'from', 'to' or 'id' which is checked
 def filter (input, range, element, show, fil):
-    count=0
     output=[]
     for row in input:
         if row[element] in range:
             output.append(row)
             if show==1:
                 fil.write("(%d,%d,%d)" % (row[0], row[1], row[2]))
-            count = count +1
-    return count, output
+    return len(output), output
 
 # delivers random supply & demand
 def rand_list(size, show):
