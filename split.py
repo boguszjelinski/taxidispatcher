@@ -3,9 +3,10 @@ import numpy as np
 from cvxopt import matrix
 
 big_cost=250000
-DEBUG=1
+DEBUG=0
 n_stands=20 # number of stands
-f = open("splitout.txt", "w")
+n_size = 10 # number of cabs and customers
+f = open("c:\\Users\\dell\\splitout.txt", "w")
 
 # count the goal function of a solved model
 # nn: number of customers=cabs (balanced)
@@ -37,10 +38,10 @@ def filter (input, range, element, show, fil):
     return len(output), output
 
 # delivers random supply & demand
-def rand_list(size, show):
+def rand_list(numb, size, show):
     list = []
     count=0
-    for i in range(0,size):
+    for i in range(0,numb):
         frm = np.random.randint(0,size) # ID, from, to; from not used at that moment in cabs, 'to' not used in cust
         to = np.random.randint(0,size)
         if (frm != to): #  drop if equals
@@ -184,9 +185,9 @@ for i in range(0,n_stands):
 
 # ID, from, to; see the PDF file with explaination
 if DEBUG==1: f.write ("The total demand:")
-n_cust, new_demand = rand_list (n_stands, DEBUG)
+n_cust, new_demand = rand_list (n_size, n_stands, DEBUG)
 if DEBUG==1: f.write ("\nThe total supply:")
-n_cabs, current_trips = rand_list (n_stands, DEBUG)
+n_cabs, current_trips = rand_list (n_size, n_stands, DEBUG)
 
 # optimal solution, not split into four
 nn, x, cost_table = solve(dist, new_demand, current_trips)
