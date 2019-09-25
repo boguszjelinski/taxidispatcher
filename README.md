@@ -21,6 +21,6 @@ julia.jl: Julia's version of python.py
 
 perf.jl: it was used to check GLPK with one million variables
 
-split.py: to verify the degradation of results as a consequence of splitting a task into four smaller
+split.py: to verify the degradation of results as a consequence of splitting a task into four smaller ones
 
 greedy_opt.py: mix of greedy and optimal solution in order to decrease size of model that is sent to solver.
