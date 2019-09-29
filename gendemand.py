@@ -1,7 +1,7 @@
 import numpy as np
-hours = 1
-reqs_per_minute=1 # 24000/60
-n_stands = 20
+hours = 2
+reqs_per_minute=50 # 24000/60
+n_stands = 50
 f = open("c:\\home\\dell\\taxi_demand.txt", "w")
 idx=0
 for time in range(0,hours*60):
