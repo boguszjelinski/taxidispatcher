@@ -24,3 +24,7 @@ perf.jl: it was used to check GLPK with one million variables
 split.py: to verify the degradation of results as a consequence of splitting a task into four smaller ones
 
 greedy_opt.py: mix of greedy and optimal solution in order to decrease size of model that is sent to solver.
+
+simulate.py: a real-life example how it all works
+
+gendemand.py: a generator of demand for the simulator in order to run simulations several times against the same input.

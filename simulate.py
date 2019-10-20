@@ -3,12 +3,13 @@ import numpy as np
 from cvxopt import matrix
 
 hours = 2
-reqs_per_minute=50 # 24000/60
+reqs_per_minute=100 
 n_stands=50
 
+DROP_TIME = 10
 THRESHOLD = 20 # stands - max distance for LCM
 MAX_OPT = 200 # max size of model put to solver
-n_cabs=800
+n_cabs=400
 big_cost=250000
 ##############################
 
@@ -22,7 +23,9 @@ def calculate_cost (distances, demand, cabs):
     for c_id, c_frm, c_to in cabs:
         d_idx=0
         for d_id, d_frm, d_to in demand:
-            cst[c_idx][d_idx] = distances[c_to][d_frm]
+            if distances[c_to][d_frm]<DROP_TIME: # take this possibility only if reasonable time to pick-up a customer
+                # otherwise big_cost will stay in this cell
+                cst[c_idx][d_idx] = distances[c_to][d_frm]
             d_idx = d_idx +1
         c_idx = c_idx+1
    
@@ -50,12 +53,20 @@ def solve (distances, demand, cabs): # new demand, old demand
 ################################################################
 
 # filters out elements NOT in range - it maybe 'from', 'to' or 'id' which is checked
-def filter_out (input, range, element):
+def filter_out_old (input, range, element):
     output=[]
     for row in input:
         if row[element] not in range:
             output.append(row)
     return len(output), output
+
+def filter_out (input, allocated, element):
+    output=[]
+    for i in range (0, len(input)): 
+        if i not in allocated: # todo: is this the most efficient way to find out what is NOT allocated ?
+            output.append(input[i])
+    return len(output), output
+
 #################################################################
 
 # heuristic - lowest cost method
@@ -96,7 +107,7 @@ demand = []
 for t in open('c:\\home\\dell\\taxi_demand.txt').read().split():
     id,frm,to,time,wait = t.strip('()').split(',')
     # time: time index/cycle when this request has to be picked up; wait: 0=now, >4: come in 'n' minutes/simulation cycles
-    demand.append((int(id), int(frm),int(to), int(time), int(wait), -1, "", -1))  
+    demand.append((int(id), int(frm), int(to), int(time), int(wait), -1, "", -1))  
     # three last fields
     # 1) index of cab -> -1 not assigned to a cab
     # 2) possible time of pick up !!! there may be multiple proposals
@@ -109,8 +120,8 @@ for idx in range(0, n_cabs):
     # with/without passenger on board: 1/0; used for filtering out cabs that should go to solver
     # time started
 
-f = open("c:\\Users\\dell\\simulog.txt", "w")
-f_solv = open("c:\\Users\\dell\\simulog_solv.txt", "w")
+f = open("c:\\home\\dell\\simulog2.txt", "w")
+f_solv = open("c:\\home\\dell\\simulog_solv2.txt", "w")
 for t in range (0, hours*60):
     # checking if cabs have reached their destinations
     for c in cabs:
@@ -137,8 +148,8 @@ for t in range (0, hours*60):
     # create demand for the solver                
     temp_demand=[]
     for d in demand:
-        if d[5]==-1 and t>=d[4]: # not assigned and not dropped (-2)
-            if t-d[4] > 10: # this customer will never be serviced, after 10 minutes of waiting the customer will look for something else
+        if d[5]==-1 and t>=d[4]: # not assigned, not dropped (-2) and not eralier than requested
+            if t-d[4] > DROP_TIME: # this customer will never be serviced, after 10 minutes of waiting the customer will look for something else
                 idx = demand.index(d)
                 demand[idx]=(d[0], d[1], d[2], d[3], d[4], -2, d[6], d[7])
                 f.write("Time %d. Customer %d dropped\n" % (t, d[0]))
@@ -187,8 +198,9 @@ for t in range (0, hours*60):
                                     cabs[idx]=(cab[0], temp_demand[c][1], temp_demand[c][2], temp_demand[c][0], 1, t)
                                     f.write("Time %d. Customer %d assigned to and picked up by cab %d\n" 
                                             % (t, temp_demand[c][0], temp_supply[s][0]))
-                                else:
-                                    # start the trip without passenger
+                                elif abs(temp_supply[s][2] - temp_demand[c][1]) < DROP_TIME:  # we have a 1D world and indexes of stands indicate the distance
+                                    # the check above is not needed, we check the distance in 'calculate_cost'
+                                    # start the trip without a passenger but to pick up a passenger
                                     cabs[idx]=(cab[0], temp_supply[s][2], temp_demand[c][1], temp_demand[c][0], 0, t)
                                     f.write("Time %d. Customer %d assigned to cab %d, cab is heading towards the customer\n" 
                                             % (t, temp_demand[c][0], temp_supply[s][0]))
@@ -197,31 +209,40 @@ for t in range (0, hours*60):
                     # sum = sum + dist[supply[s][2]][demand[c][1]]
     # LCM has to be considered too
     for pair in allocated_pairs:
+        error = 0
         if lcm_supply[pair[0]][1]==lcm_supply[pair[0]][2]: # a cab with no assignment, no need to check [3]
             # first log the assignment in the trip request
             for d in demand:
                 if d[0]==lcm_demand[pair[1]][0]: # 0: ID
                     idx = demand.index(d)
-                    demand[idx]=(d[0], d[1], d[2], d[3], d[4], lcm_supply[pair[0]][0], d[6], t)
+                    if demand[idx][5] > -1: # that should never happen, but it does - a bug in filter_out ?
+                        error = 1
+                        f.write("Time %d. Error: Customer %d already assigned to cab %d\n" % (t, demand[idx][0], demand[idx][5]))
+                    else:
+                        demand[idx]=(d[0], d[1], d[2], d[3], d[4], lcm_supply[pair[0]][0], d[6], t)
                     break
             # assign the job to the cab
+            if error == 1:
+                continue # skip this pair
+
             for cab in cabs:
                 if cab[0]==lcm_supply[pair[0]][0]: # 0: ID
                     idx = cabs.index(cab)
                     if lcm_supply[pair[0]][2]==lcm_demand[pair[1]][1]: # cab is already there
                         cabs[idx]=(cab[0], lcm_demand[pair[1]][1], lcm_demand[pair[1]][2], lcm_demand[pair[1]][0], 1, t)
-                        f.write("Time %d. Customer %d assigned to and picked up by cab %d\n" 
+                        f.write("Time %d. LCM: Customer %d assigned to and picked up by cab %d\n" 
                             % (t, lcm_demand[pair[1]][0], lcm_supply[pair[0]][0]))
-                    else:
+                    elif abs(lcm_supply[pair[0]][2] - lcm_demand[pair[1]][1]) < DROP_TIME:
                         # start the trip without passenger
                         cabs[idx]=(cab[0], lcm_supply[pair[0]][2], lcm_demand[pair[1]][1], lcm_demand[pair[1]][0], 0, t)
-                        f.write("Time %d. Customer %d assigned to cab %d, cab is heading towards the customer\n" 
+                        f.write("Time %d. LCM: Customer %d assigned to cab %d, cab is heading towards the customer\n" 
                              % (t, lcm_demand[pair[1]][0], lcm_supply[pair[0]][0]))
                     break
 
 f.write("Demand after:\n")
 for d in demand:
-    f.write("(%d,%d,%d,%d,%d,%d,%s,%d)):\n" % (d[0],d[1],d[2],d[3],d[4],d[5],d[6],d[7],))
+    f.write("(%d,%d,%d,%d,%d,%d,%s,%d)):\n" % (d[0],d[1],d[2],d[3],d[4],d[5],d[6],d[7]
+    ))
 f.write("Supply after:\n")
 for s in cabs:
     f.write("(%d,%d,%d,%d,%d,%d)):\n" % (s[0],s[1],s[2],s[3],s[4],s[5]))
