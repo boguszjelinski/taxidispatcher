@@ -13,6 +13,7 @@ n_cabs=400
 big_cost=250000
 ##############################
 
+
 def calculate_cost (distances, demand, cabs):
     n = 0
     if (len(cabs) > len(demand)): n = len(cabs)  # checking max size for unbalanced scenarios
