@@ -9,9 +9,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
-/*
- !!! I use "aside effect"(global variables) to avoid stack operations. Sorry!
- */
 public class Simulator {
 	final static short ID = 0;
 	final static short FROM = 1;
@@ -35,16 +32,20 @@ public class Simulator {
 	final static String OUTPUT_ALGO_FILE = PATH + "simulog_solv2.txt"; // decisions/stats of the solver
 			
 	final static int hours = 2, 
-			reqs_per_minute = 100, 
+			reqs_per_minute = 200, 
 			n_stands = 50,
-			DROP_TIME = 10,
-			MAX_NON_LCM = 401, // # max size of model put to solver
-			n_cabs = 400,
+			DROP_TIME = 10, // minutes/iterations which make a customer stop thinking about the taxi
+			MAX_NON_LCM = 501, // # max size of model put to solver
+			n_cabs = 900,
 			big_cost = 250000,
 			max_model = 3000; // about 5000 for NYC
 	static long demandCount=0;
 	static int tempDemandCount, tempSupplyCount;
 	
+	/*
+	 !!! "aside effect" (global variables) used to avoid costly stack operations. 
+	 */
+
 	static int[][] demand;
 	static int[][] cabs = new int[n_cabs][6];
 	static int[][] temp_supply = new int[n_cabs][3];
@@ -55,6 +56,21 @@ public class Simulator {
 	static int[][] cost = new int[max_model][max_model];
 	static int[][] costLCM = new int[max_model][max_model];
 	static int[][] LCMpair = new int[max_model][2]; // supply idx, demand idx
+	static int LCM_min_val ;
+	
+	// METRICS
+	static int total_dropped = 0;
+	static int total_pickup_time = 0;
+	static int total_pickup_numb = 0;
+	static int total_simul_time = 0;
+	static int max_solver_time = 0;
+	static int max_LCM_time = 0;
+	static int total_LCM_used = 0;
+	static int max_model_size = 0;
+	static int max_solver_size = 0;
+	/*
+	 * avg trip duration
+	 */
 	
 	public static void main(String[] args) throws IOException {
 		FileWriter f = new FileWriter(OUTPUT_FILE);
@@ -64,8 +80,10 @@ public class Simulator {
 		initSupply();
 		//testStuff(f, f_solv);
 		readDemand();
-	
+		long start = System.currentTimeMillis();
+		
 		for (int t=0; t<hours*60; t++) {
+			System.out.println(t);
 			 // checking if cabs have reached their destinations
 		    for (int c=0; c<n_cabs; c++) 
 			    if (cabs[c][FROM] != cabs[c][TO] 
@@ -81,6 +99,7 @@ public class Simulator {
 		                        
 		                        f.write("Time "+t+". Customer "+ demand[d][ID] +
 		                        		" picked up by Cab "+ cabs[c][ID] + "\n");
+		                        total_pickup_numb++;
 		                        // assign the cab to customer's trip
 		                        cabs[c][FROM] = demand[d][FROM];
 		                        cabs[c][TO] = demand[d][TO];
@@ -102,30 +121,43 @@ public class Simulator {
 	         tempDemandCount = createTempDemand(t,f);
 		     if (tempDemandCount == 0) continue; // don't solve anything
 			 tempSupplyCount = createTempSupply();
-			 f_solv.write("t:"+t+". Initial Count of demand="+ tempDemandCount +", supply="+ tempSupplyCount+ ". ");
+			 f_solv.write("\nt:"+t+". Initial Count of demand="+ tempDemandCount +", supply="+ tempSupplyCount+ ". ");
 			 int n = 0;
 					 
 			 // SOLVER
 			 if (tempSupplyCount>0) {
 				 n = calculate_cost(tempDemandCount, tempSupplyCount);
-				 
+				 if (n > max_model_size) max_model_size = n;
 				 if (n > MAX_NON_LCM) {
 					 costLCM = Arrays.stream(cost).map(int[]::clone).toArray(int[][]::new);
 					 int n_pairs = 0;
+					 long start_lcm = System.currentTimeMillis();
+					 // LCM
 					 n_pairs = LCM(n, f_solv);
+					 total_LCM_used++;
+					 long end_lcm = System.currentTimeMillis();
+					 int temp_lcm_time = (int)((end_lcm - start_lcm) / 1000F);
+					 if (temp_lcm_time > max_LCM_time) max_LCM_time = temp_lcm_time;
 					 if (n_pairs == 0) {
 						 // critical -> a big model but LCM hasn't helped 
 					 }
 					 f_solv.write("LCM n_pairs="+ n_pairs);
-					 analyzePairs(t, n_pairs, f); // produce input for the solver
-					 // what if n==n_pairs -> no input for the solver
+					 analyzePairs(t, n_pairs, f); // also produce input for the solver
+					 
+					 if (LCM_min_val == big_cost) // no input for the solver
+						 continue;
+					 
 					 n = calculate_cost(tempDemandCount, tempSupplyCount);
 					 f_solv.write(". Sent to solver: demand="+ tempDemandCount +", supply="+ tempSupplyCount+ ". ");
 				 }
-				 
+				 if (n > max_solver_size) max_solver_size = n;
 				 Process p = Runtime.getRuntime().exec(SOLVER_CMD);
 				 try {
+					long start_solver = System.currentTimeMillis();
 					p.waitFor();
+					long end_solver = System.currentTimeMillis();
+					int temp_solver_time = (int)((end_solver - start_solver) / 1000F);
+					if (temp_solver_time > max_solver_time) max_solver_time = temp_solver_time;
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 					System.exit(0);
@@ -133,11 +165,27 @@ public class Simulator {
 			 }
 			 readSolversResult(n);	
 			 analyzeSolution(n, t, f, f_solv);
-
-			 System.out.println(t);
 		}
+		long end = System.currentTimeMillis();
+		total_simul_time = (int)((end - start) / 1000F);
+		printMetrics(f_solv);
 		f.close();
 		f_solv.close();
+	}
+	
+	static void printMetrics(FileWriter fw) throws IOException {
+		fw.write("\nTotal customers: " +demandCount);
+		fw.write("\nTotal dropped customers: " +total_dropped);
+		fw.write("\nTotal pickeup customers: " +total_pickup_numb);
+		fw.write("\nTotal simulation time [secs]: " +total_simul_time);
+		fw.write("\nTotal pickup time: " +total_pickup_time);
+		if (total_pickup_numb>0)
+			fw.write("\nAvg pickup time: " + total_pickup_time/total_pickup_numb);
+		fw.write("\nMax model size: " +max_model_size);
+		fw.write("\nMax solver size: " +max_solver_size);
+		fw.write("\nMax solver time: " +max_solver_time);
+		fw.write("\nMax LCM time: " +max_LCM_time);
+		fw.write("\nLCM use count: " +total_LCM_used);
 	}
 	
 	// the demand file describes customers requests throughout the whole simulation period
@@ -192,15 +240,22 @@ public class Simulator {
 // [3] is the time when the demand comes, [4] is time requested [3]>=[4]
 // below is to simplistic, we should check [3] and send a cab to the customer
 		    if (demand[d][CAB_ASSIGNED] == -1 && t >= demand[d][TIME_REQUESTED]) { // not assigned, not dropped (-2) and not earlier than requested
-		       if (t-demand[d][TIME_REQUESTED] > DROP_TIME) { // this customer will never be serviced, after 10 minutes of waiting the customer will look for something else
+		       if (t-demand[d][TIME_REQUESTED] >= DROP_TIME) { // this customer will never be serviced, after 10 minutes of waiting the customer will look for something else
 	                demand[d][CAB_ASSIGNED] = -2;
+	                total_dropped++;
 	                f.write("Time "+t+". Customer "+demand[d][ID]+" dropped\n");
 		       }
 		       else {
-		    	   temp_demand[count][ID]   = demand[d][ID];
-		    	   temp_demand[count][FROM] = demand[d][FROM];
-		    	   temp_demand[count][TO]   = demand[d][TO];
-		    	   count++;
+		    	   // checking if any cab is in 0..DROP_TIME range; as it is useless to build a model with such a customer, they will get big_cost anyway 
+		    	   for (int c=0; c<n_cabs; c++)
+		    		   if (cabs[c][CLNT_ASSIGNED] == -1 && 
+		    		   		Math.abs(cabs[c][TO] - demand[d][FROM]) < DROP_TIME) { 
+					    	   temp_demand[count][ID]   = demand[d][ID];
+					    	   temp_demand[count][FROM] = demand[d][FROM];
+					    	   temp_demand[count][TO]   = demand[d][TO];
+					    	   count++;
+					    	   break;
+		    		   }
 		       }
 		    }
 	     return count;
@@ -212,24 +267,28 @@ public class Simulator {
 		 for (int c1=0; c1<n_cabs; c1++)
 		     if (cabs[c1][1] == cabs[c1][2] && cabs[c1][3] == -1)  // any cab with passenger (maybe stupid to absorb the solver) or standing and not assigned
 		            // or c[4]==1 without it we are ignoring cabs during a trip
-		     {	 
-		    	 temp_supply[count][ID]   = cabs[c1][ID];
-		    	 temp_supply[count][FROM] = cabs[c1][FROM];
-		    	 temp_supply[count][TO]   = cabs[c1][TO];
-		    	 count++;
+		     {	 // checking if this cab is in range 0..DROP_TIME to any unassigned customer
+		    	 for (int d=0; d<demandCount; d++)
+		    		 if(demand[d][CAB_ASSIGNED] ==-1 &&
+		    				 Math.abs(cabs[c1][TO] - demand[d][FROM]) < DROP_TIME) {
+				    	 temp_supply[count][ID]   = cabs[c1][ID];
+				    	 temp_supply[count][FROM] = cabs[c1][FROM];
+				    	 temp_supply[count][TO]   = cabs[c1][TO];
+				    	 count++;
+				    	 break;
+		    		 }
 		     }
 		 return count;
 	}
 	
 	// solver returns a very simple output, it has to be compared with data which helped create its input 
 	private static void analyzeSolution(int nn, int t, FileWriter f, FileWriter f_solv) throws IOException {
-	  int total_cost = 0, total_count=0;
+	  int total_count=0;
 	  for(int s=0; s<nn; s++) 
 		for(int c=0; c<nn; c++) 
 		  if (x[nn*s+c]==1 && cost[s][c]< big_cost // not a fake assignment (to balance the model)
 		                    // that is an unnecessary check as we commented out 'or c[4]==1 above
 		        && temp_supply[s][FROM]==temp_supply[s][TO]) { // a cab with no assignment, no need to check [3]
-			  total_cost += cost[s][c];
 			  total_count++;
 		      // first log the assignment in the trip request
 		      for (int d=0; d<demandCount; d++)
@@ -251,7 +310,7 @@ public class Simulator {
 		        }
 		      break; // in this column there should not be any more x[]=='1'
 		  }
-	  f_solv.write("; OPT count="+total_count+"\n");
+	  f_solv.write("; OPT count="+total_count);
 	}
 	
 	private static void assignToCabAndGo(int t, int s, int c, FileWriter f, String method) throws IOException {
@@ -262,6 +321,7 @@ public class Simulator {
            cabs[s][TIME_STARTED]  = t;
            String str = "Time "+ t +". Customer "+ temp_demand[c][ID]
          		  + " assigned to and picked up by Cab "+ cabs[s][ID] + " (method " +method+ ")\n";
+           total_pickup_numb++;
            f.write(str);
 	}
 	
@@ -274,6 +334,8 @@ public class Simulator {
         String str ="Time "+ t +". Customer "+ temp_demand[c][ID] 
         		+" assigned to Cab "+ cabs[s][ID] +", cab is heading to the customer (method " +method+ ")\n"; 
         f.write(str);
+        total_pickup_time += Math.abs(cabs[s][FROM] - cabs[s][TO]); // here we assume that all wait time is ASAP; but we should consider request "pick me up in 5 minutes"
+        total_pickup_numb++;
 	}
 	
 	// this routine preapers the cost matrix for solver or LCM 
@@ -305,15 +367,16 @@ public class Simulator {
 	private static int LCM(int n, FileWriter f_solv) throws IOException {
 		int size=n, s, d, i;
 		for (i=0; i<n; i++) { // we need to repeat the search (cut off rows/columns) 'n' times
-			int min_val = big_cost, s_min = -1, d_min = -1; 
+			LCM_min_val = big_cost;
+			int s_min = -1, d_min = -1; 
 			for (s=0; s<n; s++)
 				for (d=0; d<n; d++)
-					if (costLCM[s][d] < min_val) {
-						min_val = costLCM[s][d];
+					if (costLCM[s][d] < LCM_min_val) {
+						LCM_min_val = costLCM[s][d];
 						s_min = s;
 						d_min = d;
 					}
-			if (min_val == big_cost) break; // no more interesting stuff there
+			if (LCM_min_val == big_cost) break; // no more interesting stuff there
 			LCMpair[i][CAB] = s_min;
 			LCMpair[i][CLNT]= d_min;
 			// removing the column from further search by assigning big cost
@@ -338,13 +401,16 @@ public class Simulator {
 	}
 	
 	private static void initSupply() {
-		for (int i=0; i<n_cabs; i++) {
+		// we don't want random locations here as the simulation needs to be repeatable
+		// supply has to be spread to make at least one cab be in DROP_TIME range; otherwise simulation will end with noeone transported 
+		for (int i=0, j=0; i<n_cabs; i++, j++) {
+			if (j>=n_stands) j=0;
 			cabs[i][ID] 	= i; // maybe that cell is not necessary - index is ID
-			cabs[i][FROM] 	= (int)(n_stands/2); // the have a parking in the middle of the place
-			cabs[i][TO] 	= (int)(n_stands/2);
+			cabs[i][FROM] 	= j;
+			cabs[i][TO] 	= j; 
 			cabs[i][CLNT_ASSIGNED] = -1;
 			cabs[i][CLNT_ON_BOARD] = 0;
-			cabs[i][TIME_STARTED]  = -1; 
+			cabs[i][TIME_STARTED]  = -1;
 		}
 	}
 	

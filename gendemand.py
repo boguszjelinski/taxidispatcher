@@ -1,6 +1,6 @@
 import numpy as np
 hours = 2
-reqs_per_minute=100 
+reqs_per_minute=200 
 n_stands = 50
 f = open("c:\\home\\dell\\taxi_demand.txt", "w")
 idx=0
