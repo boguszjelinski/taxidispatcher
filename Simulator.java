@@ -7,21 +7,44 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class Simulator {
+	
+	private static class Pool implements Comparable<Pool> {
+	    public int custA;
+	    public int custB;
+	    public int plan;
+	    public int cost;
+	 
+	    Pool () {}
+	    
+	    @Override
+	    public int compareTo(Pool pool) {
+	        return this.cost - pool.cost;
+	    }
+	}
+		
 	final static short ID = 0;
 	final static short FROM = 1;
 	final static short TO = 2;
 	final static short CLNT_ASSIGNED = 3;
-	final static short CLNT_ON_BOARD = 4;
-	final static short TIME_REQUESTED= 4;
-	final static short CAB_ASSIGNED = 5;
-	final static short TIME_STARTED = 5;
+	final static short POOLED_ID= 3; // temp_demand
+	final static short POOLED_PLAN=4; // temp_demand; if custA ends the pool or custB
+	final static short POOLED_COST=5; // total distance of a collective trip
+	final static short CLNT_ON_BOARD = 4; // cab
+	final static short TIME_REQUESTED= 4; // demand 
+	final static short CAB_ASSIGNED = 5; // demand
+	final static short TIME_STARTED = 5; // cab, to count when it will reach the customer
 	final static short TIME_PICKUP = 7;
 	
 	final static short CAB = 0;
 	final static short CLNT = 1;
+	
+	final static short CLNT_A_ENDS = 0;
+	final static short CLNT_B_ENDS = 1;
 	
 	final static String PATH = "c:\\home\\dell\\";
 	final static String DEMAND_FILE = PATH + "taxi_demand.txt"; // real input fro simulations
@@ -34,11 +57,12 @@ public class Simulator {
 	final static int hours = 2, 
 			reqs_per_minute = 200, 
 			n_stands = 50,
-			DROP_TIME = 10, // minutes/iterations which make a customer stop thinking about the taxi
+			DROP_TIME = 10, // minutes/iterations which make a customer unsatisfied
 			MAX_NON_LCM = 501, // # max size of model put to solver
 			n_cabs = 900,
 			big_cost = 250000,
 			max_model = 3000; // about 5000 for NYC
+	final static double max_loss = 1.1; // pool customers accept only 10% loss of time if driving collectively 
 	static long demandCount=0;
 	static int tempDemandCount, tempSupplyCount;
 	
@@ -49,8 +73,10 @@ public class Simulator {
 	static int[][] demand;
 	static int[][] cabs = new int[n_cabs][6];
 	static int[][] temp_supply = new int[n_cabs][3];
-	static int[][] temp_demand = new int[max_model][3];
-	static int[][] dist = new int[n_stands][n_stands];
+	static int[][] temp_demand = new int[max_model][6]; // id,from,to + pool: 1) ID of custB 2) type of 'plan' 3) cost
+
+//	static int[][] pool = new int[max_model][4]; // 2xID + plan type + cost 
+//	static int[][] dist = new int[n_stands][n_stands];
 	
 	static int[] x = new int[max_model * max_model];
 	static int[][] cost = new int[max_model][max_model];
@@ -68,6 +94,10 @@ public class Simulator {
 	static int total_LCM_used = 0;
 	static int max_model_size = 0;
 	static int max_solver_size = 0;
+	static int max_POOL_time = 0;
+	static int max_POOL_MEM_size = 0;
+	static int max_POOL_size = 0;
+	static int total_second_passengers = 0;
 	/*
 	 * avg trip duration
 	 */
@@ -76,7 +106,7 @@ public class Simulator {
 		FileWriter f = new FileWriter(OUTPUT_FILE);
 		FileWriter f_solv = new FileWriter(OUTPUT_ALGO_FILE);
                         
-		computeDistances();
+		//computeDistances();
 		initSupply();
 		//testStuff(f, f_solv);
 		readDemand();
@@ -126,9 +156,13 @@ public class Simulator {
 					 
 			 // SOLVER
 			 if (tempSupplyCount>0) {
+				 
+				 Pool[] pl = findPool(t, f);
+				 tempDemandCount = analyzePool(pl); // reduce temp_demand
+				 
 				 n = calculate_cost(tempDemandCount, tempSupplyCount);
 				 if (n > max_model_size) max_model_size = n;
-				 if (n > MAX_NON_LCM) {
+				 if (n > MAX_NON_LCM) { // too big to send to solver, it has to be cut by LCM 
 					 costLCM = Arrays.stream(cost).map(int[]::clone).toArray(int[][]::new);
 					 int n_pairs = 0;
 					 long start_lcm = System.currentTimeMillis();
@@ -139,7 +173,7 @@ public class Simulator {
 					 int temp_lcm_time = (int)((end_lcm - start_lcm) / 1000F);
 					 if (temp_lcm_time > max_LCM_time) max_LCM_time = temp_lcm_time;
 					 if (n_pairs == 0) {
-						 // critical -> a big model but LCM hasn't helped 
+						 System.out.println ("critical -> a big model but LCM hasn't helped");
 					 }
 					 f_solv.write("LCM n_pairs="+ n_pairs);
 					 analyzePairs(t, n_pairs, f); // also produce input for the solver
@@ -158,13 +192,16 @@ public class Simulator {
 					long end_solver = System.currentTimeMillis();
 					int temp_solver_time = (int)((end_solver - start_solver) / 1000F);
 					if (temp_solver_time > max_solver_time) max_solver_time = temp_solver_time;
-				} catch (InterruptedException e) {
+				 } catch (InterruptedException e) {
 					e.printStackTrace();
 					System.exit(0);
-				}
+				 }
 			 }
 			 readSolversResult(n);	
 			 analyzeSolution(n, t, f, f_solv);
+			 // now we could check if a customer in pool has got a cab, 
+			 // if not - the other one should get a chance
+			 f.flush();
 		}
 		long end = System.currentTimeMillis();
 		total_simul_time = (int)((end - start) / 1000F);
@@ -176,7 +213,11 @@ public class Simulator {
 	static void printMetrics(FileWriter fw) throws IOException {
 		fw.write("\nTotal customers: " +demandCount);
 		fw.write("\nTotal dropped customers: " +total_dropped);
-		fw.write("\nTotal pickeup customers: " +total_pickup_numb);
+		fw.write("\nTotal pickedup customers: " +total_pickup_numb);
+		int count=0;
+		for (int c=0; c<demandCount; c++)
+			if (demand[c][CAB_ASSIGNED]>-1) count++;
+		fw.write("\nTotal customers with assigned cabs: " +count);
 		fw.write("\nTotal simulation time [secs]: " +total_simul_time);
 		fw.write("\nTotal pickup time: " +total_pickup_time);
 		if (total_pickup_numb>0)
@@ -186,6 +227,10 @@ public class Simulator {
 		fw.write("\nMax solver time: " +max_solver_time);
 		fw.write("\nMax LCM time: " +max_LCM_time);
 		fw.write("\nLCM use count: " +total_LCM_used);
+		fw.write("\nMax POOL time: " +max_POOL_time);
+		fw.write("\nMax POOL array size: " +max_POOL_MEM_size);
+		fw.write("\nMax POOL size: " +max_POOL_size);
+		fw.write("\nTotal second customers in POOL: " +total_second_passengers);
 	}
 	
 	// the demand file describes customers requests throughout the whole simulation period
@@ -236,6 +281,7 @@ public class Simulator {
 	// solver works on a limited number of customers, not the whole set read from file
 	private static int createTempDemand(int t, FileWriter f) throws IOException {
          int count = 0;
+         String str="Time "+t+". tempDemand: ";
 		 for (int d=0; d<demandCount; d++)
 // [3] is the time when the demand comes, [4] is time requested [3]>=[4]
 // below is to simplistic, we should check [3] and send a cab to the customer
@@ -253,11 +299,14 @@ public class Simulator {
 					    	   temp_demand[count][ID]   = demand[d][ID];
 					    	   temp_demand[count][FROM] = demand[d][FROM];
 					    	   temp_demand[count][TO]   = demand[d][TO];
+					    	   str += temp_demand[count][ID] +", ";
 					    	   count++;
 					    	   break;
 		    		   }
 		       }
 		    }
+		 f.write(str+"\n");
+		 f.flush();
 	     return count;
 	}
 	
@@ -269,7 +318,7 @@ public class Simulator {
 		            // or c[4]==1 without it we are ignoring cabs during a trip
 		     {	 // checking if this cab is in range 0..DROP_TIME to any unassigned customer
 		    	 for (int d=0; d<demandCount; d++)
-		    		 if(demand[d][CAB_ASSIGNED] ==-1 &&
+		    		 if(demand[d][CAB_ASSIGNED] == -1 &&
 		    				 Math.abs(cabs[c1][TO] - demand[d][FROM]) < DROP_TIME) {
 				    	 temp_supply[count][ID]   = cabs[c1][ID];
 				    	 temp_supply[count][FROM] = cabs[c1][FROM];
@@ -290,14 +339,19 @@ public class Simulator {
 		                    // that is an unnecessary check as we commented out 'or c[4]==1 above
 		        && temp_supply[s][FROM]==temp_supply[s][TO]) { // a cab with no assignment, no need to check [3]
 			  total_count++;
-		      // first log the assignment in the trip request
+		      // first log the assignment in the customer's request
 		      for (int d=0; d<demandCount; d++)
 		          if (demand[d][ID] == temp_demand[c][ID]) { 
                      demand[d][CAB_ASSIGNED] = temp_supply[s][ID];
                      demand[d][TIME_PICKUP] = t;
+                     // don't forget the other one in the pool!
+                     if (temp_demand[c][POOLED_ID] > -1) {
+                    	assignPooledCustomer(t, temp_demand[c][POOLED_ID], temp_supply[s][ID], "OPT", f);
+                  	  	total_pickup_numb++;
+                     }
                      break;
 		          }
-		          // assign the job to the cab
+		      // assign the job to the cab
 		      for (int c2=0; c2<n_cabs; c2++)
 		        if (cabs[c2][ID] == temp_supply[s][ID]) { 
                   if (temp_supply[s][TO] == temp_demand[c][FROM])  // cab is already there
@@ -311,22 +365,58 @@ public class Simulator {
 		      break; // in this column there should not be any more x[]=='1'
 		  }
 	  f_solv.write("; OPT count="+total_count);
+	  f.flush();
+	  f_solv.flush();
 	}
 	
+	private static void assignPooledCustomer(int t, int customer, int cab, String method, FileWriter f) throws IOException {
+		if (customer < 0 || cab==-1) {
+			System.out.println("assignPooledCustomer: wrong parameters");
+			System.exit(0);
+		}
+		for (int d2=0; d2<demandCount; d2++) // looking for the guy in original demand
+			if (demand[d2][ID] == customer) {
+				demand[d2][CAB_ASSIGNED] = cab;
+				String str = "Time "+ t +". Customer "+ customer
+						+ " assigned in a pool as second passenger to Cab "+ cab + " (method "+method+")\n";
+				f.write(str);
+				total_second_passengers++;
+				// TODO
+				// here we could analyze which of two plans it is and assign pickup time
+				break;
+			}
+		f.flush();
+	}
+
 	private static void assignToCabAndGo(int t, int s, int c, FileWriter f, String method) throws IOException {
-		   cabs[s][FROM] 		  = temp_demand[c][FROM];
-           cabs[s][TO] 			  = temp_demand[c][TO];
+		   String str = "Time "+ t +". Customer "+ temp_demand[c][ID]
+       		  + " assigned to and picked up by Cab "+ cabs[s][ID];
+		   cabs[s][FROM] = temp_demand[c][FROM];
+		   if (temp_demand[c][POOLED_ID] == -1) // no pool
+			   cabs[s][TO] = temp_demand[c][TO];
+		   else {
+			   str += " (POOL: the other Customer "+ temp_demand[c][POOLED_ID] +")";
+			   // now we wil cheat a bit, but the main goal is to keep the cab busy due to the real distance, 
+			   // not to be so very precise with the endpoint
+			   if (cabs[s][FROM] + temp_demand[c][POOLED_COST] >= n_stands ) {
+				   if (cabs[s][FROM] - temp_demand[c][POOLED_COST] < 0)
+					   cabs[s][TO] = 0;
+				   else cabs[s][TO] = cabs[s][FROM] - temp_demand[c][POOLED_COST];
+			   }
+			   else cabs[s][TO] = cabs[s][FROM] + temp_demand[c][POOLED_COST];
+		   }
            cabs[s][CLNT_ASSIGNED] = temp_demand[c][ID];
            cabs[s][CLNT_ON_BOARD] = 1;
            cabs[s][TIME_STARTED]  = t;
-           String str = "Time "+ t +". Customer "+ temp_demand[c][ID]
-         		  + " assigned to and picked up by Cab "+ cabs[s][ID] + " (method " +method+ ")\n";
+           
+           str += " (method " +method+ ")\n";
            total_pickup_numb++;
            f.write(str);
+           f.flush();
 	}
 	
 	private static void goToPickupUp(int t, int s, int c, FileWriter f, String method) throws IOException {
-        // unnnecessary ?? cabs[c2][1] = temp_supply[s][2]; // when assigned all cabs are free -> cabs[][1]==cabs[][2]
+        // unnecessary ?? cabs[c2][1] = temp_supply[s][2]; // when assigned all cabs are free -> cabs[][1]==cabs[][2]
         cabs[s][TO] 		   = temp_demand[c][FROM];
         cabs[s][CLNT_ASSIGNED] = temp_demand[c][ID];
         cabs[s][CLNT_ON_BOARD] = 0; // it should already have that value 
@@ -335,7 +425,6 @@ public class Simulator {
         		+" assigned to Cab "+ cabs[s][ID] +", cab is heading to the customer (method " +method+ ")\n"; 
         f.write(str);
         total_pickup_time += Math.abs(cabs[s][FROM] - cabs[s][TO]); // here we assume that all wait time is ASAP; but we should consider request "pick me up in 5 minutes"
-        total_pickup_numb++;
 	}
 	
 	// this routine preapers the cost matrix for solver or LCM 
@@ -350,9 +439,9 @@ public class Simulator {
 	 			cost[c][d] = big_cost;
 	    for (c=0; c<n_supply; c++) 
 	        for (d=0; d<n_demand; d++) 
-	            if (dist [temp_supply[c][TO]] [temp_demand[d][FROM]] < DROP_TIME) // take this possibility only if reasonable time to pick-up a customer
+	            if (Math.abs(temp_supply[c][TO] - temp_demand[d][FROM]) < DROP_TIME) // take this possibility only if reasonable time to pick-up a customer
 	                // otherwise big_cost will stay in this cell
-	                cost[c][d] = dist[temp_supply[c][TO]][temp_demand[d][FROM]];
+	                cost[c][d] = Math.abs(temp_supply[c][TO] - temp_demand[d][FROM]);
 	    FileWriter fr = new FileWriter(new File(SOLVER_COST_FILE));
 	    fr.write( n +"\n");
 	    for (c=0; c<n; c++) {
@@ -386,19 +475,20 @@ public class Simulator {
 			size--;
 			if (size == MAX_NON_LCM) break; // rest will be covered by solver
 		}
+		f_solv.flush();
 		return i; // number of allocated pairs
 	}
 	
 	// initializes the distance database between stands
 	// simplistic approach - distanse measured by diference in stand indices 
-	private static void computeDistances() {
+	/*private static void computeDistances() {
 		for (int i=0; i<n_stands; i++)
 		    for (int j=i; j<n_stands; j++) {
 		        dist[j][i] = j-i; // simplification of distance - stop9 is closer to stop7 than to stop1
 		        dist[i][j] = dist[j][i];
           	  // we have a 1D world and indexes of stands indicate the distance
 		    }
-	}
+	}*/
 	
 	private static void initSupply() {
 		// we don't want random locations here as the simulation needs to be repeatable
@@ -457,7 +547,7 @@ public class Simulator {
 	private static void analyzePairs(int t, int n_pairs, FileWriter f) throws IOException {
 		int i, ii=0;
 		int[][] temp_supply2 = new int[n_cabs][3]; 
-		int[][] temp_demand2 = new int[max_model][3];
+		int[][] temp_demand2 = new int[max_model][6];
 		
 		for (int s=0; s<tempSupplyCount; s++) {
 			for (i=0; i<n_pairs; i++)
@@ -495,7 +585,15 @@ public class Simulator {
 					for (int c2=0; c2<demandCount; c2++) 
 						if (temp_demand[d][ID] == demand[c2][ID]) {
 							demand[c2][CAB_ASSIGNED] = temp_supply[LCMpair[i][CAB]][ID];
+							f.write("Time: "+t+". Customer "+ demand[c2][ID] + " assigned by LCM to Cab "
+										+demand[c2][CAB_ASSIGNED]+"\n");
 		                    demand[c2][TIME_PICKUP] = t;
+		                    // take care of the other customer in POOL
+		                    if (temp_demand[d][POOLED_ID] > -1) {
+		                    	assignPooledCustomer(t, temp_demand[d][POOLED_ID], 
+		                    			temp_supply[LCMpair[i][CAB]][ID], "LCM", f);
+		                  	  	total_pickup_numb++;
+		                    }
 		                    break;
 						}
 					break;
@@ -510,5 +608,120 @@ public class Simulator {
 		tempDemandCount = ii;
 		temp_supply = Arrays.stream(temp_supply2).map(int[]::clone).toArray(int[][]::new);
 		temp_demand = Arrays.stream(temp_demand2).map(int[]::clone).toArray(int[][]::new);
+		f.flush();
 	}
+	
+	/* 1) find customers which will be the second one, custB - picked up by custA 
+	 * 2) custB should be removed from temp_demand sent to solver
+	 * 3) solver should find a cab for custA
+	 * 4) if custA not assigned to a cab -> rerun solver for all custB
+	 */
+	private static Pool[] findPool (int t, FileWriter f) throws IOException {
+		int pool_numb=0;
+	    List<Pool> poolList = new ArrayList<Pool>();
+	    
+		long start = System.currentTimeMillis();
+		for (int custA=0; custA<tempDemandCount; custA++)
+		  for (int custB=0; custB<tempDemandCount; custB++)
+		     if (custA != custB) {
+	            // 3 values in 2 plans: pick up B; go to A's destination, then go to B's destination OR
+	            // pick up B; go to B's destination, then go to A's destination
+	            boolean plan1=true, plan2=true; // false
+
+	            int cost1 = Math.abs(temp_demand[custA][FROM] - temp_demand[custB][FROM]) + // diff of index is distance
+	                    	Math.abs(temp_demand[custB][FROM] - temp_demand[custA][TO]) +
+	                    	Math.abs(temp_demand[custA][TO] - temp_demand[custB][TO]);
+	            
+	            int cost2 = Math.abs(temp_demand[custA][FROM] - temp_demand[custB][FROM]) +
+	                    	Math.abs(temp_demand[custB][FROM] - temp_demand[custB][TO]) +
+	                    	Math.abs(temp_demand[custB][TO] - temp_demand[custA][TO]);
+	            
+	            if (Math.abs(temp_demand[custB][FROM] - temp_demand[custA][TO]) + Math.abs(temp_demand[custA][TO]- temp_demand[custB][TO])
+	                < Math.abs(temp_demand[custB][FROM] - temp_demand[custB][TO]) * max_loss && // cust B does not lose much with it
+	                  Math.abs(temp_demand[custA][FROM] - temp_demand[custB][FROM]) + Math.abs(temp_demand[custB][FROM] - temp_demand[custA][TO])
+	                < Math.abs(temp_demand[custA][FROM] - temp_demand[custA][TO]) * max_loss // cust A does not lose much with it either
+	                ) plan1 = true; //True
+	            if (cost2 < Math.abs(temp_demand[custA][FROM] - temp_demand[custA][TO]) * max_loss) // cust A does not lose much with it, B never loses in this scenario
+	                plan2 = true; //True
+	            if (plan1 || plan2) {
+	            	Pool pool = new Pool();
+	                if (cost1 < cost2) { // plan1 is better
+	                	 pool.plan = CLNT_B_ENDS;
+	                	 pool.cost = cost1;
+	                }
+	                else {
+	                	pool.plan = CLNT_A_ENDS;
+	                	pool.cost = cost2;
+	                }
+	                pool.custA = custA;
+	                pool.custB = custB;
+	                poolList.add(pool);
+	                pool_numb++;
+	            }
+	        }
+	     // now we have to remove plans with same passengers
+		 // sorting first
+		 Pool[] arr = poolList.toArray(new Pool[poolList.size()]);
+		 Arrays.sort(arr);
+		 
+		 for (int i=1; i<arr.length; i++) { // i does not start with 0 as [0] is the best plan in the set
+	        for (int j=0; j<i; j++)
+	            if (arr[j].custA != -1 && // do not compare dropped plans, waste of time
+	            	(arr[i].custA == arr[j].custA || arr[i].custB == arr[j].custB ||
+	                 arr[i].custA == arr[j].custB || arr[i].custB == arr[j].custA)) { // the 'i' plan shares one participant with
+	                    //print ("Deleting (%d,%d) as (%d,%d) has this passenger " % (arr[i].custA, arr[i][1],arr[j].custA, arr[j][1]))
+	                    // list is sorted; i>j => delete 'i'
+	                arr[i].custA = -1; // mark as 'not to be considered'
+	                break;
+	            }
+		 }
+		 List<Pool> out = new ArrayList<Pool>();
+		 
+		 String str ="Time "+t+". Customers in pool: ";
+		 for (int i=0; i<arr.length; i++)
+		   	if (arr[i].custA != -1) { // do not show dropped plans
+		   		out.add(arr[i]);
+		   		str += temp_demand[arr[i].custA][ID] +"("+ temp_demand[arr[i].custB][ID] +"), ";
+		   	}
+		 if (out.size()>max_POOL_size) max_POOL_size = out.size();
+		 
+		 long end = System.currentTimeMillis();
+		 int time = (int)((end - start) / 1000F);
+		 if (time>max_POOL_time) max_POOL_time = time;
+		 
+		 if (pool_numb>max_POOL_MEM_size) max_POOL_MEM_size = pool_numb;
+		 
+		 f.write(str + "\n");
+		 return out.toArray(new Pool[out.size()]); 
+	}
+
+    private static int analyzePool (Pool[] arr) {
+	  int[][] temp_demand2 = new int[max_model][6];
+	  int count=0;
+	  for (int d=0; d<tempDemandCount; d++) {
+		 boolean found = false;
+		 for (Pool a : arr)
+			  if (a.custB == d) { // this customer will be picked up by another customer should not be sent tol solver 
+				  found = true;
+				  break;
+			  }
+		 if (!found) { // 'd' is not custB, it is custA and therefor will be sent to solver
+			temp_demand2[count][ID]  = temp_demand[d][ID];
+			temp_demand2[count][FROM]= temp_demand[d][FROM];
+			temp_demand2[count][TO]  = temp_demand[d][TO];
+			temp_demand2[count][POOLED_ID]  = -1;
+			// ok, it is not the custB, but if it is custA that has to pick up custB, then we have to assign the custB
+			for (Pool p : arr)
+			  if (p.custA == d) {  
+				  temp_demand2[count][POOLED_ID] = temp_demand[p.custB][ID];
+				  temp_demand2[count][POOLED_PLAN] = p.plan; // custA begins but who will end first ?
+				  temp_demand2[count][5] = p.cost;
+				  break;
+			  }
+			count++;
+		 }
+	  }
+	  temp_demand = Arrays.stream(temp_demand2).map(int[]::clone).toArray(int[][]::new);
+	  return count;
+  }
 }
