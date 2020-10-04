@@ -26,7 +26,6 @@ int cmp ( const void *pa, const void *pb ) {
     const int (*a)[MAX_IN_POOL+MAX_IN_POOL+1] = pa;
     const int (*b)[MAX_IN_POOL+MAX_IN_POOL+1] = pb;
     // the last cell is the value to be sorted by (cost of a trip)
-    
     if ( (*a)[MAX_IN_POOL+MAX_IN_POOL] < (*b)[MAX_IN_POOL+MAX_IN_POOL] ) return -1; 
     if ( (*a)[MAX_IN_POOL+MAX_IN_POOL] > (*b)[MAX_IN_POOL+MAX_IN_POOL] ) return +1;
     return 0;
@@ -128,9 +127,7 @@ void poolv2(int level) { // level of recursion = place in the pick-up queue
 int main(void)
 {
     int pool_numb = 0;
-    // time_t t;
-    // srand((unsigned) time(&t));
-
+ 
     for (int i=0; i<n; i++)
         for (int j=i; j<n; j++) {
             cost[j][i] = j-i; // simplification of distance - stop9 is closer to stop7 than to stop1
@@ -158,6 +155,7 @@ int main(void)
     //show_cost();
 
     printf("Start: %s\n", now());
+    // here we go over n^MAX_IN_POOL combinations 1000^4 !!
     poolv2(0);
     printf("Sorting ... %s\n", now());
     qsort(pool_v2, count_v2, sizeof pool_v2[0], cmp);
