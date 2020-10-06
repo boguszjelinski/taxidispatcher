@@ -1,3 +1,9 @@
+/* Author: Bogusz Jelinski
+   A.D.: 2020
+   Title: taxi pool simulator
+   Description: just to test Java performance (well, runs like a rocket)
+*/
+
 import java.util.List;
 import java.util.Arrays;
 import java.util.ArrayList;
@@ -7,26 +13,24 @@ public class Pool {
 
     final static int FROM = 0;
     final static int TO = 1;
-    final static int n = 1000;  // number of customers/passengers
-    final static int MAX_IN_POOL = 3;  // how many passengers can a cab take
+    // four most important parameters 
+    final static int n = 800;  // number of customers/passengers
+    final static int MAX_IN_POOL = 4;  // how many passengers can a cab take
     final static int MAX_WAIT_TIME = 10; // how many 'minutes' (time entities) want a passenger to wait for a cab
-    final static double max_loss = 1.01; 
+    final static double max_loss = 1.01; // 1.3 would mean that one can accept a trip to take 30% time more than being transported alone
     
     static int [][]cost  = new int[n][n];
     static int [][]demand= new int[n][2]; // from, to
-    static int []pickup  = new int[MAX_IN_POOL];
-    static int []dropoff = new int[MAX_IN_POOL];
+    static int []pickup  = new int[MAX_IN_POOL]; // will have numbers of customers
+    static int []dropoff = new int[MAX_IN_POOL]; // will have indexes to 'pickup' table
     static int numb_cust = n; // maybe *2? twice as many customers than there are stops;
-//    static int [][]pool_v2 = new int [2000000][MAX_IN_POOL + MAX_IN_POOL + 1]; // pick-ups + dropp-offs + cost
-    static int count_v2 = 0;
-    static int count_v2_ALL = 0;
+    static int count = 0;
+    static int count_all = 0;
     static List<PoolEl> poolList = new ArrayList<PoolEl>();
-
-    static int pool_numb = 0;
 
     static void drop_customers(int level) {
         if (level == MAX_IN_POOL) { // we now know how to pick up and drop-off customers
-            count_v2_ALL++;
+            count_all++;
             boolean happy = true;
             for (int d=0; d<MAX_IN_POOL; d++) { // checking if all 3(?) passengers get happy, starting from the one who gets dropped-off first
                 int pool_cost=0;
@@ -61,7 +65,7 @@ public class Pool {
                 // that is an imortant decision - is this the 'goal' function to be optimized ?
                 pool.cost = pool_cost;
                 poolList.add(pool);
-                count_v2++;
+                count++;
             }
         } else for (int c=0; c<MAX_IN_POOL; c++) { 
             // check if 'c' not in use in previous levels - "variation without repetition"

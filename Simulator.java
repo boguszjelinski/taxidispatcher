@@ -1,3 +1,9 @@
+/* Author: Bogusz Jelinski
+   A.D.: 2020
+   Title: taxi scheduler - simulator / proof-of-concept
+   Description: pool (2 passengers) + LCM + solver
+*/
+
 package com.taxi;
 
 import java.io.BufferedReader;
@@ -129,7 +135,7 @@ public class Simulator {
 	static int max_POOL_size = 0;
 	static int total_second_passengers = 0;
 	/*
-	 * avg trip duration
+	 * TODO: avg trip duration
 	 */
 	
 	public static void main(String[] args) throws IOException {

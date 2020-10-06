@@ -1,6 +1,12 @@
-from cvxopt.glpk import ilp
+# conda create -n foo python=3.8
+# activate foo
+# conda install numpy
+# conda install cvxopt
+
 import numpy as np
+from cvxopt.glpk import ilp
 from cvxopt import matrix
+
 
 def solve (n, cost): 
     if n==0: return 0, []
@@ -21,13 +27,13 @@ def solve (n, cost):
     return x
 ################################################################
 
-with open("c:\\home\\dell\\cost.txt") as f:
+with open("c:\\Users\\dell\\TAXI\\out\\cost.txt") as f:
     nn = int(f.readline())
     cost = [[int(x) for x in line.split()] for line in f]
 
 x = solve(nn, cost)
 
-f = open("c:\\home\\dell\\solv_out.txt", "w")
+f = open("c:\\Users\\dell\\TAXI\\out\\solv_out.txt", "w")
 for i in range(0,nn*nn): 
     f.write ("%d\n" % (x[i]))
 f.close()

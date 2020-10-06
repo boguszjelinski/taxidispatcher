@@ -1,0 +1,137 @@
+
+t:0. Initial Count of demand=142, supply=1300. LCM n_pairs=71
+t:1. Initial Count of demand=264, supply=1234. LCM n_pairs=132
+t:2. Initial Count of demand=165, supply=1144. LCM n_pairs=83
+t:3. Initial Count of demand=228, supply=1130. LCM n_pairs=114
+t:4. Initial Count of demand=304, supply=1108. LCM n_pairs=152
+t:5. Initial Count of demand=23, supply=1065. LCM n_pairs=12
+t:6. Initial Count of demand=83, supply=1141. LCM n_pairs=42
+t:7. Initial Count of demand=392, supply=1181. LCM n_pairs=196
+t:8. Initial Count of demand=396, supply=1071. LCM n_pairs=198
+t:9. Initial Count of demand=316, supply=982. LCM n_pairs=158
+t:10. Initial Count of demand=352, supply=972. LCM n_pairs=176
+t:11. Initial Count of demand=277, supply=974. LCM n_pairs=139
+t:12. Initial Count of demand=437, supply=999. LCM n_pairs=219
+t:13. Initial Count of demand=356, supply=940. LCM n_pairs=178
+t:14. Initial Count of demand=471, supply=927. LCM n_pairs=236
+t:15. Initial Count of demand=520, supply=918. LCM n_pairs=260
+t:16. Initial Count of demand=344, supply=877. LCM n_pairs=172
+t:17. Initial Count of demand=352, supply=912. LCM n_pairs=176
+t:18. Initial Count of demand=481, supply=933. LCM n_pairs=241
+t:19. Initial Count of demand=465, supply=876. LCM n_pairs=233
+t:20. Initial Count of demand=344, supply=850. LCM n_pairs=172
+t:21. Initial Count of demand=565, supply=895. LCM n_pairs=280
+t:22. Initial Count of demand=387, supply=833. LCM n_pairs=191
+t:23. Initial Count of demand=414, supply=840. LCM n_pairs=202
+t:24. Initial Count of demand=457, supply=835. LCM n_pairs=215
+t:25. Initial Count of demand=307, supply=836. LCM n_pairs=134
+t:26. Initial Count of demand=377, supply=889. LCM n_pairs=164
+t:27. Initial Count of demand=506, supply=870. LCM n_pairs=211
+t:28. Initial Count of demand=307, supply=827. LCM n_pairs=116
+t:29. Initial Count of demand=490, supply=869. LCM n_pairs=195
+t:30. Initial Count of demand=493, supply=846. LCM n_pairs=176
+t:31. Initial Count of demand=387, supply=843. LCM n_pairs=128
+t:32. Initial Count of demand=415, supply=876. LCM n_pairs=131
+t:33. Initial Count of demand=393, supply=900. LCM n_pairs=124
+t:34. Initial Count of demand=358, supply=910. LCM n_pairs=119
+t:35. Initial Count of demand=388, supply=925. LCM n_pairs=148
+t:36. Initial Count of demand=336, supply=899. LCM n_pairs=122
+t:37. Initial Count of demand=256, supply=893. LCM n_pairs=89
+t:38. Initial Count of demand=353, supply=930. LCM n_pairs=139
+t:39. Initial Count of demand=487, supply=907. LCM n_pairs=191
+t:40. Initial Count of demand=284, supply=844. LCM n_pairs=93
+t:41. Initial Count of demand=359, supply=874. LCM n_pairs=129
+t:42. Initial Count of demand=360, supply=890. LCM n_pairs=129
+t:43. Initial Count of demand=431, supply=892. LCM n_pairs=143
+t:44. Initial Count of demand=555, supply=880. LCM n_pairs=177
+t:45. Initial Count of demand=451, supply=844. LCM n_pairs=122
+t:46. Initial Count of demand=394, supply=864. LCM n_pairs=103
+t:47. Initial Count of demand=641, supply=909. LCM n_pairs=206
+t:48. Initial Count of demand=782, supply=837. LCM n_pairs=229
+t:49. Initial Count of demand=836, supply=800. LCM n_pairs=200. Sent to solver: demand=218, supply=600. ; OPT count=32
+t:50. Initial Count of demand=605, supply=761. LCM n_pairs=118
+t:51. Initial Count of demand=636, supply=803. LCM n_pairs=125
+t:52. Initial Count of demand=659, supply=824. LCM n_pairs=133
+t:53. Initial Count of demand=766, supply=849. LCM n_pairs=174
+t:54. Initial Count of demand=835, supply=838. LCM n_pairs=195
+t:55. Initial Count of demand=957, supply=784. LCM n_pairs=184. Sent to solver: demand=295, supply=600. ; OPT count=1
+t:56. Initial Count of demand=1091, supply=778. LCM n_pairs=178. Sent to solver: demand=368, supply=600. ; OPT count=2
+t:57. Initial Count of demand=1101, supply=800. LCM n_pairs=200. Sent to solver: demand=351, supply=600. ; OPT count=1
+t:58. Initial Count of demand=882, supply=790. LCM n_pairs=138
+t:59. Initial Count of demand=923, supply=830. LCM n_pairs=168
+t:60. Initial Count of demand=795, supply=824. LCM n_pairs=103
+t:61. Initial Count of demand=1086, supply=876. LCM n_pairs=215
+t:62. Initial Count of demand=1074, supply=808. LCM n_pairs=170
+t:63. Initial Count of demand=1032, supply=794. LCM n_pairs=146
+t:64. Initial Count of demand=1222, supply=823. LCM n_pairs=204
+t:65. Initial Count of demand=1215, supply=793. LCM n_pairs=179
+t:66. Initial Count of demand=979, supply=787. LCM n_pairs=121
+t:67. Initial Count of demand=1063, supply=857. LCM n_pairs=170
+t:68. Initial Count of demand=1059, supply=861. LCM n_pairs=171
+t:69. Initial Count of demand=969, supply=839. LCM n_pairs=147
+t:70. Initial Count of demand=973, supply=845. LCM n_pairs=151
+t:71. Initial Count of demand=1099, supply=837. LCM n_pairs=185
+t:72. Initial Count of demand=1000, supply=836. LCM n_pairs=165
+t:73. Initial Count of demand=1111, supply=831. LCM n_pairs=195
+t:74. Initial Count of demand=919, supply=810. LCM n_pairs=141
+t:75. Initial Count of demand=921, supply=827. LCM n_pairs=159
+t:76. Initial Count of demand=1037, supply=845. LCM n_pairs=194
+t:77. Initial Count of demand=1004, supply=804. LCM n_pairs=166
+t:78. Initial Count of demand=1114, supply=798. LCM n_pairs=189
+t:79. Initial Count of demand=1109, supply=797. LCM n_pairs=186
+t:80. Initial Count of demand=1138, supply=799. LCM n_pairs=173
+t:81. Initial Count of demand=939, supply=803. LCM n_pairs=126
+t:82. Initial Count of demand=1124, supply=828. LCM n_pairs=186
+t:83. Initial Count of demand=990, supply=802. LCM n_pairs=141
+t:84. Initial Count of demand=1118, supply=832. LCM n_pairs=178
+t:85. Initial Count of demand=983, supply=812. LCM n_pairs=133
+t:86. Initial Count of demand=1098, supply=846. LCM n_pairs=172
+t:87. Initial Count of demand=952, supply=832. LCM n_pairs=114
+t:88. Initial Count of demand=1018, supply=859. LCM n_pairs=153
+t:89. Initial Count of demand=833, supply=874. LCM n_pairs=104
+t:90. Initial Count of demand=786, supply=912. LCM n_pairs=106
+t:91. Initial Count of demand=1001, supply=925. LCM n_pairs=175
+t:92. Initial Count of demand=832, supply=882. LCM n_pairs=111
+t:93. Initial Count of demand=808, supply=890. LCM n_pairs=108
+t:94. Initial Count of demand=742, supply=900. LCM n_pairs=99
+t:95. Initial Count of demand=677, supply=907. LCM n_pairs=89
+t:96. Initial Count of demand=894, supply=934. LCM n_pairs=180
+t:97. Initial Count of demand=903, supply=864. LCM n_pairs=150
+t:98. Initial Count of demand=668, supply=848. LCM n_pairs=94
+t:99. Initial Count of demand=815, supply=886. LCM n_pairs=150
+t:100. Initial Count of demand=742, supply=866. LCM n_pairs=124
+t:101. Initial Count of demand=721, supply=881. LCM n_pairs=138
+t:102. Initial Count of demand=656, supply=896. LCM n_pairs=121
+t:103. Initial Count of demand=596, supply=884. LCM n_pairs=102
+t:104. Initial Count of demand=853, supply=908. LCM n_pairs=173
+t:105. Initial Count of demand=809, supply=858. LCM n_pairs=139
+t:106. Initial Count of demand=889, supply=854. LCM n_pairs=157
+t:107. Initial Count of demand=772, supply=842. LCM n_pairs=128
+t:108. Initial Count of demand=914, supply=850. LCM n_pairs=156
+t:109. Initial Count of demand=890, supply=840. LCM n_pairs=146
+t:110. Initial Count of demand=975, supply=838. LCM n_pairs=161
+t:111. Initial Count of demand=1077, supply=821. LCM n_pairs=160
+t:112. Initial Count of demand=1244, supply=837. LCM n_pairs=196
+t:113. Initial Count of demand=1295, supply=809. LCM n_pairs=169
+t:114. Initial Count of demand=1091, supply=806. LCM n_pairs=137
+t:115. Initial Count of demand=1023, supply=839. LCM n_pairs=134
+t:116. Initial Count of demand=1203, supply=864. LCM n_pairs=180
+t:117. Initial Count of demand=1247, supply=829. LCM n_pairs=174
+t:118. Initial Count of demand=1239, supply=811. LCM n_pairs=142
+t:119. Initial Count of demand=1445, supply=827. LCM n_pairs=176
+Total customers: 42161
+Total abandoned customers: 2458
+Total pickedup customers: 37337
+Total customers with assigned cabs: 37399
+Total simulation time [secs]: 2603
+Total pickup time: 5684
+Avg pickup time: 0
+Max model size: 1300
+Max solver size: 600
+Max solver time: 0
+Max LCM time: 0
+LCM use count: 120
+Max POOL time: 151
+Max POOL array size: 2086580
+Max POOL size: 722
+Total second customers in POOL: 18672

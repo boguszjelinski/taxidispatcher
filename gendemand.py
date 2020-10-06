@@ -2,7 +2,7 @@ import numpy as np
 hours = 2
 reqs_per_minute=400 
 n_stands = 50
-f = open("c:\\home\\dell\\taxi_demand.txt", "w")
+f = open("c:\\Users\\dell\\TAXI\\taxi_demand.txt", "w")
 idx=0
 for time in range(0,hours*60):
     for k in range (0, np.random.randint(0,reqs_per_minute*2)): # average number per minute should be reqs_per_minute, right?

@@ -1,3 +1,5 @@
+# Author: Bogusz Jelinski
+# A.D. 2020
 from cvxopt.glpk import ilp
 import numpy as np
 from cvxopt import matrix
