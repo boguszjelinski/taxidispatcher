@@ -1,7 +1,7 @@
 # taxi dispatcher
 ## How to optimally dispatch taxi cabs with linear programming
 
-This repository contains code and one important PDF with theory which essentially show how to use a few techniques (a solver, heuristics, ...) for taxi dispatching - something I hope will help build wonderful, scalable self-driving taxi services. This repository was meant as a proof-of-concept and will find its continuation soon in form of a production-ready dispatcher/protocol - my plan for rainy days in 2021. This task extends beyond one-man capabilities - if you would like to join me or would like me to join a dedicated team - you will find my email in the [commit log](https://api.github.com/users/boguszjelinski/events/public). 
+This repository contains code and one important PDF with theory which essentially show how to use a few techniques (a solver, heuristics, ...) for taxi dispatching - something I hope will help build wonderful, scalable self-driving taxi services. This repository was meant as a proof-of-concept and will find its continuation soon in form of a production-ready dispatcher/protocol, which could also be used to test different algorithms. This task extends beyond one-man capabilities - if you would like to join me or would like me to join a dedicated team - you will find my email in the [commit log](https://api.github.com/users/boguszjelinski/events/public). 
 
 A few files with code are meant to explain or test different aspects of the problem:
 File | Purpose |
