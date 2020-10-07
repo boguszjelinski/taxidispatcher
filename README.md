@@ -1,10 +1,10 @@
 # taxi dispatcher
 ## How to optimally dispatch taxi cabs with linear programming
 
-This repository contains code and one important PDF with theory which essentially show how to use a few techniques (a solver, heuristics, ...) for taxi dispatching - something I hope will help build wonderful, scalable self-driving taxi services. This repository was meant as a proof-of-concept and will find its continuation soon in form of a production-ready dispatcher/protocol - my plan for rainy days in 2021. This task extends beyond one-man capabilities - if you would like to join me or would like me to join a dedicated team - you will find my email in the [commit log](https://api.github.com/users/boguszjelinski/events/public). At some time I will feel myself confident enough to send a few emails to some would-be interested companies. 
+This repository contains code and one important PDF with theory which essentially show how to use a few techniques (a solver, heuristics, ...) for taxi dispatching - something I hope will help build wonderful, scalable self-driving taxi services. This repository was meant as a proof-of-concept and will find its continuation soon in form of a production-ready dispatcher/protocol - my plan for rainy days in 2021. This task extends beyond one-man capabilities - if you would like to join me or would like me to join a dedicated team - you will find my email in the [commit log](https://api.github.com/users/boguszjelinski/events/public). 
 
-A few files with code are meant to explain different aspects of the problem:
-File | Purpuse |
+A few files with code are meant to explain or test different aspects of the problem:
+File | Purpose |
 ----------|------------- |
 python.py | shows how matrices are constructed, how they reflect the mathematical model |
 julia.jl | Julia's version of python.py |
@@ -21,4 +21,4 @@ split.py | to verify the degradation of results as a consequence of splitting a 
 greedy_opt.py | mix of greedy and optimal solution in order to decrease size of model that is sent to solver. |
 simulate.py | first try how it all could work |
 gendemand.py | a generator of demand for the simulator in order to run simulations several times against the same input. |
-Simulator.java | a real-world example how dispatching could work, a proof that handling 20000 requests per hour is feasible. In fact, with 4 passengers in a pool much more is feasible. |
+Simulator.java | a real-world example how dispatching could work, a proof that handling 20k requests per hour is feasible. In fact, with 4 passengers in a pool much more is feasible. |
