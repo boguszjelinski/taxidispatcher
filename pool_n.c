@@ -12,29 +12,40 @@
 
 #define MAX_IN_POOL 4
 #define MAX_THREAD 8
+#define MAX_ARR 100000
 
 // four parameters that affect performance VERY much !!
 #define n 1000  // number of customers/passengers
 
-int cost[n][n];
-int demand[n][5]; // id, from, to, maxWait, maxLoss
+//int cost[n][n];
+//int demand[n][5]; // id, from, to, maxWait, maxLoss
 int ordersCount;
 int poolSize;
 
-int pickup[MAX_THREAD][MAX_IN_POOL];
-int dropoff[MAX_THREAD][MAX_IN_POOL];
-int pool[MAX_THREAD][100000][MAX_IN_POOL + MAX_IN_POOL + 1]; // pick-ups + dropp-offs + cost
+//int pickup[MAX_THREAD][MAX_IN_POOL];
+//int dropoff[MAX_THREAD][MAX_IN_POOL];
+//int pool[MAX_THREAD][MAX_ARR][MAX_IN_POOL + MAX_IN_POOL + 1]; // pick-ups + drop-offs + cost
 int poolAll[100000][MAX_IN_POOL + MAX_IN_POOL + 1];
-int pool_count[MAX_THREAD];
+
+int **poolPtr[MAX_THREAD];
+int poolCount[MAX_THREAD];
 int poolCountAll;
-int count_all = 0;
-
+//int count_all_all = 0;
+const char * fileName;
 pthread_t th1[MAX_THREAD];
+//struct ThreadData tData[MAX_THREAD];
 int status[MAX_THREAD];
-int start[MAX_THREAD];
-int stop[MAX_THREAD];
+int step;
 
-void readDemand(char * fileName, int linesNumb)
+void setCosts(int ** cost) {
+  for (int i=0; i<n; i++)
+	for (int j=i; j<n; j++) {
+		cost[j][i] = j-i; // simplification of distance - stop9 is closer to stop7 than to stop1
+		cost[i][j] = cost[j][i] ;
+	}
+}
+
+void readDemand(char * fileName, int linesNumb, int** demand)
 {
     FILE * fp;
     char line[40];
@@ -102,22 +113,22 @@ char *now(){
     return stamp;
 }
 
-void drop_customers(int t, int level, int custInPool) {
+int drop_customers(int t, int pool_count, int** cost, int** demand, int** pool, int* pickup, int* dropoff, int level, int custInPool) {
     if (level == custInPool) { // we now know how to pick up and drop-off customers
-        count_all++;
+        //count_all_all++;
         int happy = 1; // true
         for (int d=0; d<custInPool; d++) { // checking if all 3(?) passengers get happy, starting from the one who gets dropped-off first
             int pool_cost=0;
-            // cost of pick-up phase TODO: maybe pickup[t] phase should not be counted to 'happiness' ?
-            for (int ph=dropoff[t][d]; ph<custInPool-1; ph++)
-                pool_cost += cost[demand[pickup[t][ph]][FROM]][demand[pickup[t][ph+1]][FROM]];
+            // cost of pick-up phase TODO: maybe pickup phase should not be counted to 'happiness' ?
+            for (int ph=dropoff[d]; ph<custInPool-1; ph++)
+                pool_cost += cost[demand[pickup[ph]][FROM]][demand[pickup[ph+1]][FROM]];
             // cost of first drop-off
-            pool_cost += cost[demand[pickup[t][custInPool-1]][FROM]][demand[pickup[t][dropoff[t][0]]][TO]];
+            pool_cost += cost[demand[pickup[custInPool-1]][FROM]][demand[pickup[dropoff[0]]][TO]];
             // cost of drop-off
             for (int ph=0; ph<d; ph++)
-                pool_cost += cost[demand[pickup[t][dropoff[t][ph]]][TO]][demand[pickup[t][dropoff[t][ph+1]]][TO]];
-            if (pool_cost >  cost[demand[pickup[t][dropoff[t][d]]][FROM]][demand[pickup[t][dropoff[t][d]]][TO]]
-																	* (1 + demand[pickup[t][dropoff[t][d]]][LOSS]/100.0)) {
+                pool_cost += cost[demand[pickup[dropoff[ph]]][TO]][demand[pickup[dropoff[ph+1]]][TO]];
+            if (pool_cost >  cost[demand[pickup[dropoff[d]]][FROM]][demand[pickup[dropoff[d]]][TO]]
+																	* (1 + demand[pickup[dropoff[d]]][LOSS]/100.0)) {
                 happy = 0; // not happy
                 break;
             }
@@ -125,90 +136,115 @@ void drop_customers(int t, int level, int custInPool) {
         if (happy) {
             // add to pool
             for (int i=0; i<custInPool; i++) {
-                pool[t][pool_count[t]][i] = pickup[t][i];
-                pool[t][pool_count[t]][i+custInPool] = pickup[t][dropoff[t][i]];
+                pool[pool_count][i] = pickup[i];
+                pool[pool_count][i+custInPool] = pickup[dropoff[i]];
             }
             int pool_cost = 0;
             for (int i=0; i<custInPool -1; i++) // cost of pick-up
-                pool_cost += cost[demand[pickup[t][i]][FROM]][demand[pickup[t][i+1]][FROM]];
-            pool_cost += cost[demand[pickup[t][custInPool-1]][FROM]][demand[pickup[t][dropoff[t][0]]][TO]]; // drop-off the first one
+                pool_cost += cost[demand[pickup[i]][FROM]][demand[pickup[i+1]][FROM]];
+            pool_cost += cost[demand[pickup[custInPool-1]][FROM]][demand[pickup[dropoff[0]]][TO]]; // drop-off the first one
             for (int i=0; i<custInPool -1; i++) // cost of drop-off of the rest
-                pool_cost += cost[demand[pickup[t][dropoff[t][i]]][TO]][demand[pickup[t][dropoff[t][i+1]]][TO]];
+                pool_cost += cost[demand[pickup[dropoff[i]]][TO]][demand[pickup[dropoff[i+1]]][TO]];
             // that is an imortant decision - is this the 'goal' function to be optimized ?
-            pool[t][pool_count[t]][MAX_IN_POOL + MAX_IN_POOL] = pool_cost;
-            pool_count[t]++;
+            pool[pool_count][MAX_IN_POOL + MAX_IN_POOL] = pool_cost;
+            pool_count++;
         }
     } else for (int c=0; c<custInPool; c++) {
         // check if 'c' not in use in previous levels - "variation without repetition"
         int found=0;
         for (int l=0; l<level; l++) {
-           if (dropoff[t][l] == c) {
+           if (dropoff[l] == c) {
                found = 1;
                break;
            };
         }
         if (found) continue; // next proposal please
-        dropoff[t][level] = c;
+        dropoff[level] = c;
         // a drop-off more
-        drop_customers(t, level+1, custInPool);
+        pool_count = drop_customers(t, pool_count, cost, demand, pool, pickup, dropoff, level+1, custInPool);
     }
+    return pool_count;
 }
 
-void findPool(int t, int level, int numbCust, int start, int stop, int custInPool) { // level of recursion = place in the pick-up queue
+int findPool(int t, int pool_count, int** cost, int** demand, int** pool, int* pickup, int* dropoff, int level, int numbCust, int start, int stop, int custInPool) { // level of recursion = place in the pick-up queue
 	if (level == 0)
-		printf("t=%d start=%d stop=%d\n", t, start, stop);
+		printf("START: t=%d start=%d stop=%d\n", t, start, stop);
     if (level == custInPool) { // now we have all customers for a pool (proposal) and their order of pick-up
         // next is to generate combinations for the "drop-off" phase
-        drop_customers(t, 0, custInPool);
+        pool_count = drop_customers(t, pool_count, cost, demand, pool, pickup, dropoff, 0, custInPool);
     } else for (int c = start; c < stop; c++) {
         // check if 'c' not in use in previous levels - "variation without repetition"
         int found=0;
         for (int l=0; l<level; l++) {
-           if (pickup[t][l] == c) {
+           if (pickup[l] == c) {
                found = 1;
                break;
            };
         }
         if (found) continue; // next proposal please
-        pickup[t][level] = c;
+        pickup[level] = c;
         // check if the customer is happy, that he doesn't have to wait for too long
         int p_cost = 0;
         for (int l = 0; l < level; l++)
-            p_cost += cost[demand[pickup[t][l]][FROM]][demand[pickup[t][l+1]][FROM]];
-        if (p_cost > demand[pickup[t][level]][WAIT])
+            p_cost += cost[demand[pickup[l]][FROM]][demand[pickup[l+1]][FROM]];
+        if (p_cost > demand[pickup[level]][WAIT])
             continue;
         // find the next customer
-        findPool(t, level+1, numbCust, 0, numbCust, custInPool);
+        pool_count = findPool(t, pool_count, cost, demand, pool, pickup, dropoff, level+1, numbCust, 0, numbCust, custInPool);
     }
+    return pool_count;
 }
 
-void setCosts() {
-  for (int i=0; i<n; i++)
-	for (int j=i; j<n; j++) {
-		cost[j][i] = j-i; // simplification of distance - stop9 is closer to stop7 than to stop1
-		cost[i][j] = cost[j][i] ;
-	}
+int** allocateArr(int rows, int cols) {
+   int **pool_ptr, *ptr;
+   int len = sizeof(int *) * rows + sizeof(int) * cols * rows;
+   pool_ptr = (int **) malloc(len);
+   // first element in of the array
+   ptr = (int *)(pool_ptr + rows);
+
+	//  to point rows pointer to appropriate location in the array
+   for (int i = 0; i < rows; i++)
+	  pool_ptr[i] = (ptr + cols * i);
+   return pool_ptr;
 }
 
 // https://w3.cs.jmu.edu/kirkpams/OpenCSF/Books/csf/html/ThreadArgs.html
 void *poolThread(void *args)
-{
+{  int len, col, *pickup_ptr, *dropoff_ptr, **pool_ptr, *ptr, **cost_ptr, **demand_ptr;
    int t = (int) args;
-   findPool(t, 0, ordersCount, start[t], stop[t], poolSize);
+
+   cost_ptr = allocateArr(n,n);
+   setCosts(cost_ptr);
+
+   demand_ptr = allocateArr(n,5); // TODO: read from args, one read from disk for all threads
+   readDemand(fileName, ordersCount, demand_ptr);
+
+   pool_ptr = allocateArr(MAX_ARR, MAX_IN_POOL + MAX_IN_POOL + 1);
+
+   len = sizeof(int) * MAX_IN_POOL ;
+   pickup_ptr = (int *) malloc(len);
+   dropoff_ptr = (int *) malloc(len);
+
+   int start = t * step;
+   int stop = start + step > ordersCount ? ordersCount : start + step;
+
+   poolCount[t] = findPool(t, 0, cost_ptr, demand_ptr, pool_ptr, pickup_ptr, dropoff_ptr, 0, ordersCount, start, stop, poolSize);
+   poolPtr[t] = pool_ptr;
+
+   free(pickup_ptr);
+   free(dropoff_ptr);
+   free(cost_ptr);
+   free(demand_ptr);
    pthread_exit(NULL);
 }
 
 void runThreads() {
-  int step = (ordersCount / MAX_THREAD) + 1;
 
-  for (int i=0, s=0; i<MAX_THREAD; i++, s+=step) {
-	start[i] = s;
-	stop[i] = s + step > ordersCount ? ordersCount : s + step; // last thread may get a bit fewer orders
-  }
   for (int i=0; i<MAX_THREAD; i++)
 	pthread_create(&th1[i], NULL, poolThread, (void*)i);
 
   // wait for all threads to complete
+
   for (int i=0; i<MAX_THREAD; i++)
 	pthread_join(th1[i], &status[i]);
 
@@ -218,14 +254,15 @@ void runThreads() {
 
 void joinResults() {
   poolCountAll=0;
-  for (int t=0; t<MAX_THREAD; t++)
-	  for (int j=0; j<pool_count[t]; j++, poolCountAll++)
+  for (int t=0; t<MAX_THREAD; t++) {
+	  for (int j=0; j<poolCount[t]; j++, poolCountAll++)
 		  for (int i=0; i<MAX_IN_POOL + MAX_IN_POOL + 1; i++)
-			  poolAll[poolCountAll][i] = pool[t][j][i];
+			  poolAll[poolCountAll][i] = poolPtr[t][j][i];
+	  free(poolPtr[t]);
+  }
 }
 
 void removeDuplicates() {
-
     qsort(poolAll, poolCountAll, sizeof poolAll[0], cmp);
     //printf("Removing duplicates ... %s\n", now());
     for (int i=0; i < poolCountAll; i++) {
@@ -253,20 +290,20 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    const char * fileName = argv[3];
+    fileName = argv[3];
     ordersCount = atoi(argv[4]);
     poolSize = atoi(argv[1]);
 
-    readDemand(fileName, ordersCount); // filling 'demand' table
+    //readDemand(fileName, ordersCount); // filling 'demand' table
 
     //printf("ordersCount: %d\n", ordersCount);
-    //printf("Start: %s\n", now());
+    printf("Start: %s\n", now());
 
-    setCosts();
-    //runThreads();
-    findPool(0, 0, ordersCount, 0, 13, poolSize);
-    joinResults();
-    //printf("Count ALL: %d\n", count_all);
+    step = (ordersCount / MAX_THREAD) + 1;
+    runThreads();
+    //findPool(0, 0, ordersCount, 0, 13, poolSize);
+    //joinResults();
+    //printf("Count ALL: %d\n", count_all_all);
     //printf("Count: %d\n", pool_count);
     //printf("Sorting ... %s\n", now());
 
@@ -275,5 +312,6 @@ int main(int argc, char *argv[])
     int good_count = 0;
     good_count = writeResult(argv[5], poolCountAll, poolSize);
     //printf("Not duplicated count: %d\n", good_count);
-    //printf("Stop: %s\n", now());
+    printf("Stop: %s\n", now());
 }
+
