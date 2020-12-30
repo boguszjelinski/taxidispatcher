@@ -117,11 +117,6 @@ int flagIsSet(int t) {
 	    // file doesn't exist
 		return 0;
 	}
-	/*FILE * fp= fopen(file, "r");
-	if (fp == NULL) return 0; // nope
-	fclose(fp);
-	return 1; // yup
-	*/
 }
 
 int main(int argc, char *argv[])
@@ -138,7 +133,7 @@ int main(int argc, char *argv[])
     ordersCount = atoi(argv[3]);
     poolSize = atoi(argv[1]);
 
-    printf("Start: %s\n", now());
+    //printf("Start: %s\n", now());
 
     system("del *.flg out*.csv");
     for (int i=0; i<MAX_THREAD; i++) {
@@ -154,7 +149,6 @@ int main(int argc, char *argv[])
     while(count<MAX_THREAD) {
       for (int i=0; i<MAX_THREAD && count<MAX_THREAD; i++)
     	if (outputRead[i] == 0 && flagIsSet(i)) {
-    		printf("Reading thread %d\n", i);
     		count++;
     		outputRead[i] = 1; // don't check this thread any more
     		sprintf(file, "out%d.csv", i);
@@ -178,5 +172,5 @@ int main(int argc, char *argv[])
     good_count = writeResult(argv[4], poolCountAll, poolSize);
 
     //printf("Not duplicated count: %d\n", good_count);
-    printf("Stop: %s\n", now());
+    //printf("Stop: %s\n", now());
 }

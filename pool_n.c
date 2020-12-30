@@ -11,18 +11,19 @@
 
 #define MAX_IN_POOL 4
 #define MAX_THREAD 8
+#define MAX_DEMAND 2000
+#define MAX_STAND 51  // number of customers/passengers
+#define MAX_ARR 10000
+#define DEMAND_FIELDS 5
 
-// four parameters that affect performance VERY much !!
-#define n 1000  // number of customers/passengers
-
-int cost[n][n];
-int demand[n][5]; // id, from, to, maxWait, maxLoss
+int cost[MAX_STAND][MAX_STAND];
+int demand[MAX_DEMAND][DEMAND_FIELDS]; // id, from, to, maxWait, maxLoss
 int ordersCount;
 int poolSize;
 
 int pickup[MAX_IN_POOL];
 int dropoff[MAX_IN_POOL];
-int pool[100000][MAX_IN_POOL + MAX_IN_POOL + 1]; // pick-ups + dropp-offs + cost
+int pool[MAX_ARR][MAX_IN_POOL + MAX_IN_POOL + 1]; // pick-ups + dropp-offs + cost
 int pool_count;
 int count_all = 0;
 
@@ -41,7 +42,7 @@ void readDemand(char * fileName, int linesNumb)
     while (fgets(line, sizeof(line), fp)) {
         // five fields expected
         tok = strtok(line, ",");
-        for (int i=0; i<5; i++) {
+        for (int i=0; i<DEMAND_FIELDS; i++) {
             demand[rec][i] = atoi(tok);
             tok = strtok(NULL, ",");
             if (tok == NULL) break;
@@ -56,7 +57,7 @@ void touchFile(int t) {
 	char file[20];
 	sprintf(file, "out%d.flg", t);
 	FILE * fp= fopen(file, "w");
-	printf(fp, "%d", t);
+	fprintf(fp, "%d", t);
 	fclose(fp);
 }
 
@@ -79,7 +80,6 @@ int writeResult(char * fileName, int linesNumb, int poolSize)
     return count;
 }
 
-
 // compare func for Qsort
 int cmp ( const void *pa, const void *pb ) {
     const int (*a)[MAX_IN_POOL+MAX_IN_POOL+1] = pa;
@@ -91,7 +91,7 @@ int cmp ( const void *pa, const void *pb ) {
 }
 
 char *now(){
-    char stamp = (char *)malloc(sizeof(char) * 20);
+    char *stamp = (char *)malloc(sizeof(char) * 20);
     time_t lt = time(NULL);
     struct tm *tm = localtime(&lt);
     sprintf(stamp,"%04d-%02d-%02d %02d:%02d:%02d", tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
@@ -151,8 +151,6 @@ void drop_customers(int level, int custInPool) {
 }
 
 void findPool(int level, int numbCust, int start, int stop, int custInPool) { // level of recursion = place in the pick-up queue
-	if (level == 0)
-		printf("start=%d stop=%d\n", start, stop);
     if (level == custInPool) { // now we have all customers for a pool (proposal) and their order of pick-up
         // next is to generate combinations for the "drop-off" phase
         drop_customers(0, custInPool);
@@ -179,8 +177,8 @@ void findPool(int level, int numbCust, int start, int stop, int custInPool) { //
 }
 
 void setCosts() {
-  for (int i=0; i<n; i++)
-	for (int j=i; j<n; j++) {
+  for (int i=0; i<MAX_STAND; i++)
+	for (int j=i; j<MAX_STAND; j++) {
 		cost[j][i] = j-i; // simplification of distance - stop9 is closer to stop7 than to stop1
 		cost[i][j] = cost[j][i] ;
 	}
@@ -215,7 +213,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    const char * fileName = argv[3];
+    char * fileName = argv[3];
     ordersCount = atoi(argv[4]);
     poolSize = atoi(argv[1]);
     int thread = atoi(argv[2]);
