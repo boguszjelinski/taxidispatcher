@@ -12,30 +12,21 @@
 
 #define MAX_IN_POOL 4
 #define MAX_THREAD 8
-#define MAX_ARR 100000
+#define MAX_ARR 10000
+#define n 100
 
-// four parameters that affect performance VERY much !!
-#define n 1000  // number of customers/passengers
-
-//int cost[n][n];
-//int demand[n][5]; // id, from, to, maxWait, maxLoss
-int ordersCount;
-int poolSize;
-
-//int pickup[MAX_THREAD][MAX_IN_POOL];
-//int dropoff[MAX_THREAD][MAX_IN_POOL];
-//int pool[MAX_THREAD][MAX_ARR][MAX_IN_POOL + MAX_IN_POOL + 1]; // pick-ups + drop-offs + cost
-int poolAll[100000][MAX_IN_POOL + MAX_IN_POOL + 1];
-
-int **poolPtr[MAX_THREAD];
-int poolCount[MAX_THREAD];
-int poolCountAll;
-//int count_all_all = 0;
+/*int ordersCount, poolSize;
 const char * fileName;
-pthread_t th1[MAX_THREAD];
-//struct ThreadData tData[MAX_THREAD];
-int status[MAX_THREAD];
-int step;
+*/
+int poolAll[MAX_ARR][MAX_IN_POOL + MAX_IN_POOL + 1];
+int poolCountAll;
+
+struct ThreadParam {
+	int id;
+	int **arr;
+	int count;
+	int step;
+};
 
 void setCosts(int ** cost) {
   for (int i=0; i<n; i++)
@@ -49,8 +40,6 @@ void readDemand(char * fileName, int linesNumb, int** demand)
 {
     FILE * fp;
     char line[40];
-    size_t len = 0;
-    ssize_t read;
 
     fp = fopen(fileName, "r");
     if (fp == NULL) {
@@ -106,7 +95,7 @@ int cmp ( const void *pa, const void *pb ) {
 }
 
 char *now(){
-    char *stamp = (char *)malloc(sizeof(char) * 16);
+    char *stamp = (char *)malloc(sizeof(char) * 20);
     time_t lt = time(NULL);
     struct tm *tm = localtime(&lt);
     sprintf(stamp,"%04d-%02d-%02d %02d:%02d:%02d", tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
@@ -167,9 +156,7 @@ int drop_customers(int t, int pool_count, int** cost, int** demand, int** pool, 
 }
 
 int findPool(int t, int pool_count, int** cost, int** demand, int** pool, int* pickup, int* dropoff, int level, int numbCust, int start, int stop, int custInPool) { // level of recursion = place in the pick-up queue
-	if (level == 0)
-		printf("START: t=%d start=%d stop=%d\n", t, start, stop);
-    if (level == custInPool) { // now we have all customers for a pool (proposal) and their order of pick-up
+	if (level == custInPool) { // now we have all customers for a pool (proposal) and their order of pick-up
         // next is to generate combinations for the "drop-off" phase
         pool_count = drop_customers(t, pool_count, cost, demand, pool, pickup, dropoff, 0, custInPool);
     } else for (int c = start; c < stop; c++) {
@@ -210,49 +197,74 @@ int** allocateArr(int rows, int cols) {
 
 // https://w3.cs.jmu.edu/kirkpams/OpenCSF/Books/csf/html/ThreadArgs.html
 void *poolThread(void *args)
-{  int len, col, *pickup_ptr, *dropoff_ptr, **pool_ptr, *ptr, **cost_ptr, **demand_ptr;
-   int t = (int) args;
+{  int len, col, *ptr, **cost_ptr, **demand_ptr;
+   int *pickup_ptr, *dropoff_ptr;
+   //int pickup_ptr[MAX_IN_POOL], dropoff_ptr[MAX_IN_POOL];
+   int **pool_ptr;
+   struct ThreadParam *param = (struct ThreadParam*) args;
+   int t = param->id;
+
+   int step = param->step;
+   int ordersCount = 100;
+   int poolSize=4;
 
    cost_ptr = allocateArr(n,n);
    setCosts(cost_ptr);
 
    demand_ptr = allocateArr(n,5); // TODO: read from args, one read from disk for all threads
-   readDemand(fileName, ordersCount, demand_ptr);
+   //readDemand(fileName, ordersCount, demand_ptr);
+   readDemand("pool-in.csv", ordersCount, demand_ptr);
 
    pool_ptr = allocateArr(MAX_ARR, MAX_IN_POOL + MAX_IN_POOL + 1);
-
    len = sizeof(int) * MAX_IN_POOL ;
-   pickup_ptr = (int *) malloc(len);
-   dropoff_ptr = (int *) malloc(len);
-
+   pickup_ptr = (int *) calloc(MAX_IN_POOL, sizeof(int));
+   dropoff_ptr = (int *) calloc(MAX_IN_POOL, sizeof(int));
+   //pickup_ptr = (int *) malloc(MAX_IN_POOL* sizeof(int));
+   //   dropoff_ptr = (int *) malloc(MAX_IN_POOL *sizeof(int));
    int start = t * step;
    int stop = start + step > ordersCount ? ordersCount : start + step;
 
-   poolCount[t] = findPool(t, 0, cost_ptr, demand_ptr, pool_ptr, pickup_ptr, dropoff_ptr, 0, ordersCount, start, stop, poolSize);
-   poolPtr[t] = pool_ptr;
+   printf("START: t=%d %s\n", t, now());
+   param->count = findPool(t, 0, cost_ptr, demand_ptr, pool_ptr, pickup_ptr, dropoff_ptr, 0, ordersCount, start, stop, poolSize);
+   param->arr = pool_ptr;
 
    free(pickup_ptr);
    free(dropoff_ptr);
+   printf("STOP: t=%d %s\n", t, now());
    free(cost_ptr);
    free(demand_ptr);
+
    pthread_exit(NULL);
 }
 
 void runThreads() {
+  pthread_t th1[MAX_THREAD];
+  int status[MAX_THREAD];
+  int poolCount[MAX_THREAD];
+  int **poolPtr[MAX_THREAD];
+  struct ThreadParam args[MAX_THREAD];
+  int ordersCount = 100;
+  int step = (ordersCount / MAX_THREAD) + 1;
 
-  for (int i=0; i<MAX_THREAD; i++)
-	pthread_create(&th1[i], NULL, poolThread, (void*)i);
+  for (int i=0; i<MAX_THREAD; i++) {
+    args[i].id = i;
+    args[i].step = step;
+	pthread_create(&th1[i], NULL, poolThread, &args[i]);
+  }
 
   // wait for all threads to complete
-
   for (int i=0; i<MAX_THREAD; i++)
 	pthread_join(th1[i], &status[i]);
 
+  for (int i=0; i<MAX_THREAD; i++) {
+  	poolPtr[i] = args[i].arr; // return value from a thread
+    poolCount[i] = args[i].count;
+  }
   //copying results from all threads to one table - to be sorted
-  joinResults();
+  joinResults(poolCount, poolPtr);
 }
 
-void joinResults() {
+void joinResults(int *poolCount, int **poolPtr[MAX_THREAD]) {
   poolCountAll=0;
   for (int t=0; t<MAX_THREAD; t++) {
 	  for (int j=0; j<poolCount[t]; j++, poolCountAll++)
@@ -290,16 +302,15 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    fileName = argv[3];
-    ordersCount = atoi(argv[4]);
-    poolSize = atoi(argv[1]);
+    char *fileName = argv[3];
+    int ordersCount = atoi(argv[4]);
+    int poolSize = atoi(argv[1]);
 
     //readDemand(fileName, ordersCount); // filling 'demand' table
 
     //printf("ordersCount: %d\n", ordersCount);
     printf("Start: %s\n", now());
 
-    step = (ordersCount / MAX_THREAD) + 1;
     runThreads();
     //findPool(0, 0, ordersCount, 0, 13, poolSize);
     //joinResults();

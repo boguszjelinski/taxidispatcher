@@ -1,0 +1,5 @@
+﻿  ConsoleApplication1.cpp
+C:\Users\dell\source\repos\ConsoleApplication1\ConsoleApplication1\ConsoleApplication1.cpp(311,63): warning C4101: 'ptr': unreferenced local variable
+C:\Users\dell\source\repos\ConsoleApplication1\ConsoleApplication1\ConsoleApplication1.cpp(311,14): warning C4101: 'col': unreferenced local variable
+  LINK : C:\Users\dell\source\repos\ConsoleApplication1\Debug\ConsoleApplication1.exe not found or not built by the last incremental link; performing full link
+  ConsoleApplication1.vcxproj -> C:\Users\dell\source\repos\ConsoleApplication1\Debug\ConsoleApplication1.exe
